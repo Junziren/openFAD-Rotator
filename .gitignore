@@ -1,0 +1,14 @@
+build/
+build-*/
+WebUI/node_modules/
+WebUI/dist/assets/
+*.user
+*.suo
+*.vcxproj.user
+.DS_Store
+
+# Local UI/native capture artifacts
+/native-*.png
+/webview-*.png
+/desktop-*.png
+/pluginval-*.txt

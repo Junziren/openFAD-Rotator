@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "product": "openFAD Rotator",
+  "presets": [
+    { "name": "Gentle Rotation", "category": "Natural", "model": "Console Coax", "description": "温和的 Slow 旋转与轻微空间尾迹。", "values": { "model": 1, "speedMode": 1, "depth": 0.45, "motion": 0.25, "character": 0.28, "mix": 0.35 } },
+    { "name": "Console Slow", "category": "Natural", "model": "Console Coax", "description": "温暖中频、厚重惯性和窄幅旋转。", "values": { "model": 1, "speedMode": 3, "freeRate": 0.42, "inertia": 3.8, "depth": 0.38, "drive": 0.28, "mix": 0.35 } },
+    { "name": "Cinema Motion", "category": "Natural", "model": "Cinema Horn", "description": "号角存在感与清晰的高频转子运动。", "values": { "model": 2, "speedMode": 2, "freeRate": 6.5, "depth": 0.68, "motion": 0.45, "character": 0.5, "mix": 0.42 } },
+    { "name": "Nearfield Tremolo", "category": "Natural", "model": "Nearfield Monitor", "description": "近场监听器上的可控速度调制。", "values": { "model": 5, "structure": 1, "speedMode": 3, "freeRate": 3.2, "depth": 0.58, "distance": 0.85, "motion": 0.5, "character": 0.58 } },
+    { "name": "Coral Drift", "category": "Dream", "model": "British Shelf", "description": "温暖空气感、固定左右微移调与浅扩散。", "values": { "quality": 1, "model": 3, "structure": 1, "speedMode": 3, "freeRate": 0.32, "depth": 0.52, "space": 0.72, "dream": 0.58, "diffusion": 0.62, "tail": 5.0, "microshift": 9.0, "mix": 0.48 } },
+    { "name": "Prism Air", "category": "Dream", "model": "Modern Reference", "description": "明亮结构和更长的扩散空间。", "values": { "quality": 1, "model": 7, "structure": 2, "speedMode": 4, "syncDivision": 5, "depth": 0.78, "space": 0.86, "dream": 0.72, "diffusion": 0.78, "tail": 8.0, "feedback": 0.72, "mix": 0.58 } },
+    { "name": "Still Bloom", "category": "Dream", "model": "Pocket Radio", "description": "冻结后缓慢活化的低带宽漂浮纹理。", "values": { "quality": 1, "model": 0, "speedMode": 0, "depth": 0.2, "space": 0.82, "dream": 0.9, "diffusion": 0.9, "tail": 10.0, "feedback": 0.82, "freeze": true, "mix": 0.65 } },
+    { "name": "Axis Break", "category": "Extreme", "model": "PA Stack", "description": "高速、极端深度和高反馈的实验状态。", "values": { "quality": 1, "model": 6, "structure": 2, "speedMode": 2, "freeRate": 9.0, "depth": 1.0, "space": 1.0, "dream": 1.0, "diffusion": 0.86, "tail": 12.0, "feedback": 0.9, "character": 0.95, "motion": 1.0, "mix": 0.72 } }
+  ]
+}
