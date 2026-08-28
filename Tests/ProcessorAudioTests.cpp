@@ -343,6 +343,107 @@ bool checkDefaultAudioChain()
 
     return true;
 }
+
+bool checkMultiInstanceIsolation()
+{
+    Processor first;
+    Processor second;
+    first.prepareToPlay (48000.0, 128);
+    second.prepareToPlay (48000.0, 128);
+
+    if (! setActual (first, openfad::params::id::model, 0.0f)
+        || ! setActual (second, openfad::params::id::model, 7.0f)
+        || ! setActual (first, openfad::params::id::angle, -35.0f)
+        || ! setActual (second, openfad::params::id::angle, 35.0f))
+    {
+        std::cerr << "could not configure multi-instance probe\n";
+        return false;
+    }
+
+    auto firstBuffer = juce::AudioBuffer<float> (2, 128);
+    auto secondBuffer = juce::AudioBuffer<float> (2, 128);
+    fillTestSignal (firstBuffer);
+    secondBuffer.makeCopyOf (firstBuffer);
+    juce::MidiBuffer midi;
+    first.processBlock (firstBuffer, midi);
+    second.processBlock (secondBuffer, midi);
+
+    const auto difference = maximumDifference (firstBuffer, secondBuffer);
+    const auto firstModel = actualValue (first, openfad::params::id::model);
+    const auto secondModel = actualValue (second, openfad::params::id::model);
+    const auto firstAngle = actualValue (first, openfad::params::id::angle);
+    const auto secondAngle = actualValue (second, openfad::params::id::angle);
+    if (! allFinite (firstBuffer) || ! allFinite (secondBuffer)
+        || ! std::isfinite (difference) || difference < 1.0e-4f
+        || std::abs (firstModel - 0.0f) > 1.0e-4f
+        || std::abs (secondModel - 7.0f) > 1.0e-4f
+        || std::abs (firstAngle + 35.0f) > 1.0e-3f
+        || std::abs (secondAngle - 35.0f) > 1.0e-3f)
+    {
+        std::cerr << "multi-instance state was not isolated; difference=" << difference
+                  << " firstModel=" << firstModel << " secondModel=" << secondModel
+                  << " firstAngle=" << firstAngle << " secondAngle=" << secondAngle << "\n";
+        return false;
+    }
+
+    if (! setActual (first, openfad::params::id::mix, 0.12f)
+        || std::abs (actualValue (second, openfad::params::id::mix) - 0.35f) > 1.0e-4f)
+    {
+        std::cerr << "multi-instance parameter write leaked between processors\n";
+        return false;
+    }
+
+    return first.getAudioProcessSequence() == 1u
+        && second.getAudioProcessSequence() == 1u;
+}
+
+bool checkOfflineDreamTail()
+{
+    Processor processor;
+    processor.prepareToPlay (48000.0, 128);
+    if (! setActual (processor, openfad::params::id::modelBypass, 1.0f)
+        || ! setActual (processor, openfad::params::id::modelAmount, 0.0f)
+        || ! setActual (processor, openfad::params::id::rotatorAmount, 0.0f)
+        || ! setActual (processor, openfad::params::id::dopplerAmount, 0.0f)
+        || ! setActual (processor, openfad::params::id::earlyReflections, 0.0f)
+        || ! setActual (processor, openfad::params::id::dreamBypass, 0.0f)
+        || ! setActual (processor, openfad::params::id::dream, 1.0f)
+        || ! setActual (processor, openfad::params::id::predelay, 0.035f)
+        || ! setActual (processor, openfad::params::id::feedback, 0.86f)
+        || ! setActual (processor, openfad::params::id::tail, 6.0f)
+        || ! setActual (processor, openfad::params::id::mix, 1.0f))
+    {
+        std::cerr << "could not configure offline-tail probe\n";
+        return false;
+    }
+
+    auto buffer = juce::AudioBuffer<float> (2, 128);
+    buffer.clear();
+    buffer.setSample (0, 0, 1.0f);
+    buffer.setSample (1, 0, 1.0f);
+    juce::MidiBuffer midi;
+    processor.processBlock (buffer, midi);
+
+    auto tailPeak = 0.0f;
+    for (int block = 0; block < 96; ++block)
+    {
+        buffer.clear();
+        processor.processBlock (buffer, midi);
+        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                tailPeak = std::max (tailPeak, std::abs (buffer.getSample (channel, sample)));
+    }
+
+    if (! allFinite (buffer) || ! std::isfinite (tailPeak)
+        || tailPeak < 1.0e-4f || processor.getTailLengthSeconds() < 1.0)
+    {
+        std::cerr << "offline Dream tail was not rendered; peak=" << tailPeak
+                  << " tailSeconds=" << processor.getTailLengthSeconds() << "\n";
+        return false;
+    }
+
+    return processor.getAudioProcessSequence() == 97u;
+}
 }
 
 int main()
@@ -350,7 +451,9 @@ int main()
     if (! checkDefaultAudioChain()
         || ! checkStereoAndMonoLayouts()
         || ! checkProgramsAndStateRoundTrip()
-        || ! checkHostTempoSync())
+        || ! checkHostTempoSync()
+        || ! checkMultiInstanceIsolation()
+        || ! checkOfflineDreamTail())
         return 1;
 
     std::cout << "Processor contract checks passed\n";

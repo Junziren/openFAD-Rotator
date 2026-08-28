@@ -8,6 +8,12 @@
 - MIDI Freeze with note overlap tracking and All Notes Off handling.
 - Standalone-safe Dream delay advancement.
 - Smoothed input trim, output trim, and dry/wet transitions.
+- Discrete `Render Mode`, `Model Bypass`, and `Dream Bypass` changes use bounded
+  24 ms crossfades; `Rotator Amount` and model amount automation use the same
+  short ramp, so rapid host/UI changes do not hard-switch the audio path.
+- `Dream Freeze` (including MIDI-held freeze) ramps its input removal and
+  feedback/damping coefficients over 24 ms instead of changing the delay loop
+  discontinuously.
 - Authored speaker response manifests and model-specific DSP voicing.
 - Speaker model cutoff, band gains, loudness calibration, and drive changes use a dedicated 24 ms ramp, so discrete model automation does not step the audio path.
 - Band-specific rotor processing with causal fractional-delay Doppler modulation for the horn and drum radiators.
@@ -36,6 +42,9 @@
 - Repeatable `Scripts/validate-windows.ps1` smoke path for manifest, WebUI, native artifacts, WebView2 loader, and pluginval completion.
 - Release DSP performance evidence at 48 kHz across 64/128/256/512/1024-sample blocks, with p99 callback timing and finite-output checks.
 - Processor host-contract checks cover parameter ID uniqueness, mono/stereo bus negotiation, program changes, gesture writes, project-state and user-preset round trips, and host BPM Sync response.
+- Processor checks also cover per-instance state isolation, no-PlayHead/offline
+  processing, rendered Dream tail after an impulse, and monotonic audio-process
+  telemetry sequencing.
 - Deterministic DSP soak checks cover 120 seconds at 48 kHz plus 20 seconds at 96 kHz while cycling speed, direction, Doppler, speaker, room, and Dream parameters.
 - Audited offline Windows Release bundle contains VST3, Standalone, WebView2 loader, license/notices, validation documents, an artifact manifest, and SHA-256 package metadata.
 - Installed Release VST3 copy revalidated with `D:\pluginval\pluginval.exe` at strictness level 10.

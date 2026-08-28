@@ -158,7 +158,8 @@ private:
     SpeakerBands processSpeaker (float input,
                                  ChannelState& state,
                                  const Params& params,
-                                 const SpeakerVoicing& voicing);
+                                 const SpeakerVoicing& voicing,
+                                 float modelAmount);
     float processDoppler (float input,
                           std::vector<float>& delay,
                           float phase,
@@ -167,7 +168,11 @@ private:
     float processBinauralDelay (float input,
                                 std::vector<float>& delay,
                                 float delaySamples) noexcept;
-    float processDream (float input, ChannelState& state, int channel, const Params& params);
+    float processDream (float input,
+                        ChannelState& state,
+                        int channel,
+                        const Params& params,
+                        float freezeBlend);
     float currentRateForParams (const Params& params) const noexcept;
     float modelGain (int model) const noexcept;
 
@@ -207,7 +212,12 @@ private:
     juce::SmoothedValue<float> inputGainSmoother;
     juce::SmoothedValue<float> outputGainSmoother;
     juce::SmoothedValue<float> mixSmoother;
+    juce::SmoothedValue<float> modelAmountSmoother;
+    juce::SmoothedValue<float> rotatorAmountSmoother;
     juce::SmoothedValue<float> dopplerAmountSmoother;
+    juce::SmoothedValue<float> renderModeSmoother;
+    juce::SmoothedValue<float> dreamBlendSmoother;
+    juce::SmoothedValue<float> freezeSmoother;
     juce::SmoothedValue<float> speakerLowCutSmoother;
     juce::SmoothedValue<float> speakerHighCutSmoother;
     juce::SmoothedValue<float> speakerLowGainSmoother;

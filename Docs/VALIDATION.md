@@ -46,7 +46,7 @@ build-vs/openFADRotator_DSPTests_artefacts/Release/openFADRotator_DSPTests.exe
 ctest --test-dir build-vs -C Release --output-on-failure -R openFADRotator_DSPTests
 ```
 
-Result: passed. The regression covers 44.1/48/96 kHz, zero and irregular block sizes, neutral transparency, active-chain finite output, band-specific Doppler delay presence, independent Rotator/Doppler controls, 24 ms Doppler automation continuity, 24 ms speaker-model voicing transition continuity, signed-rate direction coast-through-zero, reverse-transition audio continuity, parameterised Binaural ITD/head-shadow spatial cues, 24 ms Binaural angle automation continuity, and NaN/Inf input isolation.
+Result: passed. The regression covers 44.1/48/96 kHz, zero and irregular block sizes, neutral transparency, active-chain finite output, band-specific Doppler delay presence, independent Rotator/Doppler controls, 24 ms Doppler automation continuity, 24 ms speaker-model voicing transition continuity, 24 ms Render Mode/Model Bypass/Dream Bypass/Dream Freeze crossfades in both directions, smoothed Rotator Amount, signed-rate direction coast-through-zero, reverse-transition audio continuity, parameterised Binaural ITD/head-shadow spatial cues, 24 ms Binaural angle automation continuity, and NaN/Inf input isolation.
 
 ### DSP performance evidence
 
@@ -54,7 +54,7 @@ Result: passed. The regression covers 44.1/48/96 kHz, zero and irregular block s
 build-vs/openFADRotator_DSPPerformanceTests_artefacts/Release/openFADRotator_DSPPerformanceTests.exe
 ```
 
-Result: passed on this Windows x64 machine at 48 kHz for 64/128/256/512/1024-sample blocks. The measured p99 callback times were 0.0138/0.0383/0.0577/0.1121/0.2377 ms against 1.3333/2.6667/5.3333/10.6667/21.3333 ms deadlines; no non-finite output was observed. This is a local Release benchmark, not a cross-machine real-time guarantee.
+Result: passed on this Windows x64 machine at 48 kHz for 64/128/256/512/1024-sample blocks. The latest measured p99 callback times were 0.0179/0.0545/0.0787/0.1746/0.3923 ms against 1.3333/2.6667/5.3333/10.6667/21.3333 ms deadlines; no non-finite output was observed after enabling live-path crossfades. This is a local Release benchmark, not a cross-machine real-time guarantee.
 
 ### DSP soak checks
 
@@ -72,7 +72,7 @@ build-vs/openFADRotator_ProcessorTests_artefacts/Release/openFADRotator_Processo
 ctest --test-dir build-vs -C Release --output-on-failure -R openFADRotator_ProcessorTests
 ```
 
-Result: passed. The processor-level probe checks the complete parameter ID contract, mono/stereo effect layouts, rejection of a disabled input bus, finite mono processing, factory program writes, gesture writes, project-state and user-preset round trips, denormalised Choice reads, independent `Doppler Amount` state, and host BPM Sync response.
+Result: passed. The processor-level probe checks the complete parameter ID contract, mono/stereo effect layouts, rejection of a disabled input bus, finite mono processing, factory program writes, gesture writes, project-state and user-preset round trips, denormalised Choice reads, independent `Doppler Amount` state, host BPM Sync response, per-instance state isolation, no-PlayHead processing, offline Dream-tail rendering after an impulse, and monotonic audio-process sequencing.
 
 ### Standalone native WebView
 
@@ -130,6 +130,12 @@ group visible, the final rebuilt Release VST3 was rerun at strictness level
 `10`; it again completed with no `FAIL` or `ERROR` lines:
 
 `build-vs/validation/pluginval-ui-two-column-20260828-final/openFAD Rotator.vst3_28 Aug 2026 12,48,46pm.txt`
+
+After adding the bounded discrete-path crossfades, the latest Release VST3 run
+completed at `13:39:27` on August 28, 2026 at strictness level `10`; it again
+found no `FAIL` or `ERROR` lines:
+
+`build-vs/validation/pluginval-20260828-133927/`
 
 The optional Steinberg VST3 Validator test was skipped because no external validator executable path was configured.
 

@@ -124,7 +124,12 @@ void RotatorDSP::prepare (double newSampleRate, int, int newNumChannels)
     inputGainSmoother.reset (sampleRate, 0.012);
     outputGainSmoother.reset (sampleRate, 0.012);
     mixSmoother.reset (sampleRate, 0.012);
+    modelAmountSmoother.reset (sampleRate, 0.024);
+    rotatorAmountSmoother.reset (sampleRate, 0.024);
     dopplerAmountSmoother.reset (sampleRate, 0.024);
+    renderModeSmoother.reset (sampleRate, 0.024);
+    dreamBlendSmoother.reset (sampleRate, 0.024);
+    freezeSmoother.reset (sampleRate, 0.024);
     speakerLowCutSmoother.reset (sampleRate, 0.024);
     speakerHighCutSmoother.reset (sampleRate, 0.024);
     speakerLowGainSmoother.reset (sampleRate, 0.024);
@@ -172,7 +177,12 @@ void RotatorDSP::reset()
     inputGainSmoother.setCurrentAndTargetValue (0.0f);
     outputGainSmoother.setCurrentAndTargetValue (0.0f);
     mixSmoother.setCurrentAndTargetValue (0.0f);
+    modelAmountSmoother.setCurrentAndTargetValue (0.0f);
+    rotatorAmountSmoother.setCurrentAndTargetValue (0.0f);
     dopplerAmountSmoother.setCurrentAndTargetValue (0.0f);
+    renderModeSmoother.setCurrentAndTargetValue (0.0f);
+    dreamBlendSmoother.setCurrentAndTargetValue (0.0f);
+    freezeSmoother.setCurrentAndTargetValue (0.0f);
     speakerLowCutSmoother.setCurrentAndTargetValue (0.0f);
     speakerHighCutSmoother.setCurrentAndTargetValue (0.0f);
     speakerLowGainSmoother.setCurrentAndTargetValue (0.0f);
@@ -218,7 +228,8 @@ float RotatorDSP::modelGain (int model) const noexcept
 RotatorDSP::SpeakerBands RotatorDSP::processSpeaker (float input,
                                                      ChannelState& state,
                                                      const Params& params,
-                                                     const SpeakerVoicing& voicing)
+                                                     const SpeakerVoicing& voicing,
+                                                     float modelAmount)
 {
     const auto qualityFactor = params.quality == 1 ? 1.35f : 1.0f;
     auto low = onePoleLowpass (input, state.low, voicing.lowCut * qualityFactor);
@@ -233,7 +244,7 @@ RotatorDSP::SpeakerBands RotatorDSP::processSpeaker (float input,
     const auto cabinetCoefficient = (0.06f + 0.15f * (1.0f - params.damping))
                                   * (params.quality == 1 ? 0.72f : 1.0f);
     const auto cabinet = onePoleLowpass (mid * resonance, state.cabinet, cabinetCoefficient);
-    const auto amount = speakerModelAmount (params);
+    const auto amount = clamp01 (modelAmount);
     const SpeakerBands modeled {
         low * voicing.lowGain * voicing.modelGain,
         (mid * voicing.midGain
@@ -314,7 +325,11 @@ float RotatorDSP::processBinauralDelay (float input,
     return delay[index] + (delay[next] - delay[index]) * fraction;
 }
 
-float RotatorDSP::processDream (float input, ChannelState& state, int channel, const Params& params)
+float RotatorDSP::processDream (float input,
+                                ChannelState& state,
+                                int channel,
+                                const Params& params,
+                                float freezeBlend)
 {
     if (params.dreamBypass || params.dream <= 0.0001f)
         return input;
@@ -353,16 +368,18 @@ float RotatorDSP::processDream (float input, ChannelState& state, int channel, c
         diffuse = diffuse * (params.quality == 1 ? 0.72f : 0.78f) + diffusion[i] * 0.28f;
     }
 
-    const auto freezeInput = params.freeze ? 0.0f : input;
+    const auto freezeAmount = clamp01 (freezeBlend);
+    const auto freezeInput = input * (1.0f - freezeAmount);
     const auto tailFactor = std::clamp (0.55f + 0.45f * (params.tail / 12.0f), 0.0f, 1.0f);
-    const auto feedback = params.freeze
-        ? 0.9995f
-        : std::clamp (params.feedback * (0.65f + params.dream * 0.3f) * (0.75f + 0.25f * tailFactor),
-                      0.0f, 0.97f);
-    const auto damping = params.freeze
-        ? 1.0f
-        : std::clamp (0.9992f - 0.00065f * std::clamp (params.dreamDamping, 0.0f, 1.0f)
-                      - 0.00025f * (1.0f - tailFactor), 0.97f, 0.9995f);
+    const auto regularFeedback = std::clamp (params.feedback * (0.65f + params.dream * 0.3f)
+                                             * (0.75f + 0.25f * tailFactor),
+                                             0.0f, 0.97f);
+    const auto feedback = regularFeedback + (0.9995f - regularFeedback) * freezeAmount;
+    const auto regularDamping = std::clamp (0.9992f
+                                             - 0.00065f * std::clamp (params.dreamDamping, 0.0f, 1.0f)
+                                             - 0.00025f * (1.0f - tailFactor),
+                                             0.97f, 0.9995f);
+    const auto damping = regularDamping + (1.0f - regularDamping) * freezeAmount;
     const auto write = softClip (freezeInput + diffuse * feedback, 0.05f) * damping;
     delay[delayWrite] = write;
 
@@ -378,6 +395,8 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
 {
     juce::ignoreUnused (isPlaying);
     const auto params = sanitiseParams (rawParams);
+    auto dreamProcessParams = params;
+    dreamProcessParams.dreamBypass = false;
     const auto samples = buffer.getNumSamples();
     const auto channels = std::min (buffer.getNumChannels(), numChannels);
     if (channels <= 0 || samples <= 0 || delayLeft.empty() || dopplerLowLeft.empty()
@@ -394,8 +413,12 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
     const auto maxRateStep = 8.0f
                            / (std::max (0.01f, params.inertia) * static_cast<float> (sampleRate));
     const auto rotorMotionScale = params.depth * (0.35f + params.motion * 0.9f);
-    const auto rotorAmount = clamp01 (params.rotatorAmount * rotorMotionScale);
+    const auto rotorAmountTarget = clamp01 (params.rotatorAmount * rotorMotionScale);
     const auto dopplerAmountTarget = clamp01 (params.dopplerAmount * rotorMotionScale);
+    const auto modelAmountTarget = speakerModelAmount (params);
+    const auto renderModeTarget = params.renderMode == 0 ? 0.0f : 1.0f;
+    const auto dreamBlendTarget = (! params.dreamBypass && params.dream > 0.0001f) ? 1.0f : 0.0f;
+    const auto freezeTarget = params.freeze ? 1.0f : 0.0f;
     const auto model = std::clamp (params.model, 0, 7);
     const auto& profile = speakerProfiles[static_cast<size_t> (model)];
     const auto speakerLowCutTarget = finiteClamp (profile.lowCut, 0.015f, 0.0f, 0.9999f);
@@ -411,7 +434,12 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         inputGainSmoother.setCurrentAndTargetValue (inputGainTarget);
         outputGainSmoother.setCurrentAndTargetValue (outputGainTarget);
         mixSmoother.setCurrentAndTargetValue (mixTarget);
+        modelAmountSmoother.setCurrentAndTargetValue (modelAmountTarget);
+        rotatorAmountSmoother.setCurrentAndTargetValue (rotorAmountTarget);
         dopplerAmountSmoother.setCurrentAndTargetValue (dopplerAmountTarget);
+        renderModeSmoother.setCurrentAndTargetValue (renderModeTarget);
+        dreamBlendSmoother.setCurrentAndTargetValue (dreamBlendTarget);
+        freezeSmoother.setCurrentAndTargetValue (freezeTarget);
         speakerLowCutSmoother.setCurrentAndTargetValue (speakerLowCutTarget);
         speakerHighCutSmoother.setCurrentAndTargetValue (speakerHighCutTarget);
         speakerLowGainSmoother.setCurrentAndTargetValue (speakerLowGainTarget);
@@ -427,7 +455,12 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         inputGainSmoother.setTargetValue (inputGainTarget);
         outputGainSmoother.setTargetValue (outputGainTarget);
         mixSmoother.setTargetValue (mixTarget);
+        modelAmountSmoother.setTargetValue (modelAmountTarget);
+        rotatorAmountSmoother.setTargetValue (rotorAmountTarget);
         dopplerAmountSmoother.setTargetValue (dopplerAmountTarget);
+        renderModeSmoother.setTargetValue (renderModeTarget);
+        dreamBlendSmoother.setTargetValue (dreamBlendTarget);
+        freezeSmoother.setTargetValue (freezeTarget);
         speakerLowCutSmoother.setTargetValue (speakerLowCutTarget);
         speakerHighCutSmoother.setTargetValue (speakerHighCutTarget);
         speakerLowGainSmoother.setTargetValue (speakerLowGainTarget);
@@ -437,11 +470,10 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         speakerDriveSmoother.setTargetValue (speakerDriveTarget);
         binauralAzimuthSmoother.setTargetValue (binauralAzimuthTarget);
     }
-    const auto modelAmount = speakerModelAmount (params);
     const auto spaceAmount = 0.12f + params.space * 0.88f;
     const auto outputSafetyClip = ! params.bypass
-                               && (modelAmount > 0.000001f
-                                   || rotorAmount > 0.000001f
+                               && (modelAmountTarget > 0.000001f
+                                   || rotorAmountTarget > 0.000001f
                                    || dopplerAmountTarget > 0.000001f
                                    || (! params.dreamBypass && params.dream > 0.0001f)
                                    || params.earlyReflections > 0.000001f
@@ -465,6 +497,11 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
     {
         const auto inputGain = inputGainSmoother.getNextValue();
         const auto outputGain = outputGainSmoother.getNextValue();
+        const auto modelAmount = clamp01 (modelAmountSmoother.getNextValue());
+        const auto rotorAmount = clamp01 (rotatorAmountSmoother.getNextValue());
+        const auto renderModeBlend = clamp01 (renderModeSmoother.getNextValue());
+        const auto dreamBlend = clamp01 (dreamBlendSmoother.getNextValue());
+        const auto freezeBlend = clamp01 (freezeSmoother.getNextValue());
         const auto rawLeft = buffer.getSample (0, sample);
         const auto rawRight = channels > 1 ? buffer.getSample (1, sample) : rawLeft;
         const auto leftIn = std::isfinite (rawLeft) ? rawLeft * inputGain : 0.0f;
@@ -483,8 +520,8 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
             speakerDriveSmoother.getNextValue()
         };
 
-        const auto speakerLeftBands = processSpeaker (sourceLeft, channelStates[0], params, voicing);
-        const auto speakerRightBands = processSpeaker (sourceRight, channelStates[1], params, voicing);
+        const auto speakerLeftBands = processSpeaker (sourceLeft, channelStates[0], params, voicing, modelAmount);
+        const auto speakerRightBands = processSpeaker (sourceRight, channelStates[1], params, voicing, modelAmount);
 
         // Rotor speed is signed. When direction changes, the target crosses
         // zero and the inertia-limited slew produces a real coast-down and
@@ -570,70 +607,71 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         const auto speakerLeft = modelDriveLeft;
         const auto speakerRight = modelDriveRight;
 
-        auto wetLeft = speakerLeft * leftGain;
-        auto wetRight = speakerRight * rightGain;
+        auto speakerWetLeft = speakerLeft * leftGain;
+        auto speakerWetRight = speakerRight * rightGain;
         const auto reflection = params.earlyReflections * (0.02f + 0.06f * spaceAmount);
-        wetLeft += channelStates[0].reflection * reflection;
-        wetRight += channelStates[1].reflection * reflection;
+        speakerWetLeft += channelStates[0].reflection * reflection;
+        speakerWetRight += channelStates[1].reflection * reflection;
         const auto reflectionCoefficient = 0.01f + 0.12f * (1.0f - clamp01 (params.roomDamping));
-        channelStates[0].reflection += (wetLeft - channelStates[0].reflection) * reflectionCoefficient;
-        channelStates[1].reflection += (wetRight - channelStates[1].reflection) * reflectionCoefficient;
+        channelStates[0].reflection += (speakerWetLeft - channelStates[0].reflection) * reflectionCoefficient;
+        channelStates[1].reflection += (speakerWetRight - channelStates[1].reflection) * reflectionCoefficient;
 
-        if (params.renderMode == 0)
+        // Always advance the binaural path so render-mode automation can crossfade
+        // between two live paths without exposing stale delay-line contents.
+        // Lightweight HRTF-style cues are intentionally parameterised rather than
+        // a substitute for a licensed SOFA convolution asset.
+        const auto listenerAzimuth = binauralAzimuthSmoother.getNextValue();
+        const auto rotorAzimuth = std::sin (rotorPhase)
+                                * params.depth
+                                * (0.35f + 0.65f * rotorAmount);
+        const auto azimuth = std::clamp (listenerAzimuth * 0.75f + rotorAzimuth * 0.65f,
+                                         -1.0f,
+                                         1.0f);
+        const auto leftFar = 0.5f + 0.5f * azimuth;
+        const auto rightFar = 1.0f - leftFar;
+        const auto leftShadow = 0.045f + 0.34f * leftFar;
+        const auto rightShadow = 0.045f + 0.34f * rightFar;
+        const auto crossfeed = 0.035f + params.space * 0.12f;
+        const auto shadowSmoothing = 0.012f + 0.028f * std::max (leftShadow, rightShadow);
+        channelStates[0].hrtfShadow += (speakerWetLeft - channelStates[0].hrtfShadow) * shadowSmoothing;
+        channelStates[1].hrtfShadow += (speakerWetRight - channelStates[1].hrtfShadow) * shadowSmoothing;
+
+        const auto leftHigh = speakerWetLeft - channelStates[0].hrtfShadow;
+        const auto rightHigh = speakerWetRight - channelStates[1].hrtfShadow;
+        const auto leftShaped = channelStates[0].hrtfShadow * (1.0f - leftShadow * 0.08f)
+                              + leftHigh * (1.0f - leftShadow);
+        const auto rightShaped = channelStates[1].hrtfShadow * (1.0f - rightShadow * 0.08f)
+                               + rightHigh * (1.0f - rightShadow);
+
+        channelStates[0].hrtfCrossfeed += (rightShaped - channelStates[0].hrtfCrossfeed)
+                                         * (0.018f + 0.07f * crossfeed);
+        channelStates[1].hrtfCrossfeed += (leftShaped - channelStates[1].hrtfCrossfeed)
+                                         * (0.018f + 0.07f * crossfeed);
+
+        const auto itdSamples = static_cast<float> (sampleRate * maxBinauralItdSeconds);
+        const auto binauralLeft = processBinauralDelay (leftShaped,
+                                                        binauralDelayLeft,
+                                                        itdSamples * leftFar) * 0.94f
+                                + channelStates[0].hrtfCrossfeed * crossfeed;
+        const auto binauralRight = processBinauralDelay (rightShaped,
+                                                         binauralDelayRight,
+                                                         itdSamples * rightFar) * 0.94f
+                                 + channelStates[1].hrtfCrossfeed * crossfeed;
+
+        auto wetLeft = binauralLeft * (1.0f - renderModeBlend) + speakerWetLeft * renderModeBlend;
+        auto wetRight = binauralRight * (1.0f - renderModeBlend) + speakerWetRight * renderModeBlend;
+
+        // Keep Dream's delay state alive only during its short transition and
+        // crossfade its return so bypass automation does not click.
+        if (dreamBlend > 0.000001f)
         {
-            // Lightweight HRTF-style cues: the rotor phase supplies a moving
-            // azimuth, a short interpolated delay supplies ITD, and the
-            // high-frequency residual is attenuated at the far ear. This is
-            // intentionally parameterised rather than a substitute for a
-            // licensed SOFA convolution asset.
-            const auto listenerAzimuth = binauralAzimuthSmoother.getNextValue();
-            const auto rotorAzimuth = std::sin (rotorPhase)
-                                    * params.depth
-                                    * (0.35f + 0.65f * rotorAmount);
-            const auto azimuth = std::clamp (listenerAzimuth * 0.75f + rotorAzimuth * 0.65f,
-                                             -1.0f,
-                                             1.0f);
-            const auto leftFar = 0.5f + 0.5f * azimuth;
-            const auto rightFar = 1.0f - leftFar;
-            const auto leftShadow = 0.045f + 0.34f * leftFar;
-            const auto rightShadow = 0.045f + 0.34f * rightFar;
-            const auto crossfeed = 0.035f + params.space * 0.12f;
-            const auto shadowSmoothing = 0.012f + 0.028f * std::max (leftShadow, rightShadow);
-            channelStates[0].hrtfShadow += (wetLeft - channelStates[0].hrtfShadow) * shadowSmoothing;
-            channelStates[1].hrtfShadow += (wetRight - channelStates[1].hrtfShadow) * shadowSmoothing;
-
-            const auto leftHigh = wetLeft - channelStates[0].hrtfShadow;
-            const auto rightHigh = wetRight - channelStates[1].hrtfShadow;
-            const auto leftShaped = channelStates[0].hrtfShadow * (1.0f - leftShadow * 0.08f)
-                                  + leftHigh * (1.0f - leftShadow);
-            const auto rightShaped = channelStates[1].hrtfShadow * (1.0f - rightShadow * 0.08f)
-                                   + rightHigh * (1.0f - rightShadow);
-
-            channelStates[0].hrtfCrossfeed += (rightShaped - channelStates[0].hrtfCrossfeed)
-                                             * (0.018f + 0.07f * crossfeed);
-            channelStates[1].hrtfCrossfeed += (leftShaped - channelStates[1].hrtfCrossfeed)
-                                             * (0.018f + 0.07f * crossfeed);
-
-            const auto itdSamples = static_cast<float> (sampleRate * maxBinauralItdSeconds);
-            const auto delayedLeft = processBinauralDelay (leftShaped,
-                                                            binauralDelayLeft,
-                                                            itdSamples * leftFar);
-            const auto delayedRight = processBinauralDelay (rightShaped,
-                                                             binauralDelayRight,
-                                                             itdSamples * rightFar);
-            wetLeft = delayedLeft * 0.94f + channelStates[0].hrtfCrossfeed * crossfeed;
-            wetRight = delayedRight * 0.94f + channelStates[1].hrtfCrossfeed * crossfeed;
+            const auto dreamLeft = processDream (wetLeft, channelStates[0], 0,
+                                                 dreamProcessParams, freezeBlend);
+            const auto dreamRight = processDream (wetRight, channelStates[1], 1,
+                                                  dreamProcessParams, freezeBlend);
+            wetLeft += (dreamLeft - wetLeft) * dreamBlend;
+            wetRight += (dreamRight - wetRight) * dreamBlend;
         }
-        else
-        {
-            // Keep the short delay history warm so switching render modes does
-            // not expose stale samples from a previous binaural pass.
-            binauralDelayLeft[binauralWrite] = std::isfinite (wetLeft) ? wetLeft : 0.0f;
-            binauralDelayRight[binauralWrite] = std::isfinite (wetRight) ? wetRight : 0.0f;
-        }
-
-        wetLeft = processDream (wetLeft, channelStates[0], 0, params);
-        wetRight = processDream (wetRight, channelStates[1], 1, params);
 
         const auto mix = clamp01 (mixSmoother.getNextValue());
         const auto dryMix = std::sqrt (1.0f - mix);

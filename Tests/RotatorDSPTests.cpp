@@ -709,6 +709,100 @@ bool checkBinauralAngleAutomationIsContinuous (double sampleRate, int blockSize)
     return true;
 }
 
+bool checkDiscreteTransitionsAreContinuous (double sampleRate, int blockSize)
+{
+    if (blockSize <= 0)
+        return true;
+
+    constexpr auto probeBlockSize = 64;
+    constexpr auto warmupBlocks = 96;
+    constexpr auto transitionBlocks = 48;
+
+    auto measure = [sampleRate] (openfad::RotatorDSP::Params start,
+                                 openfad::RotatorDSP::Params end,
+                                 const char* label)
+    {
+        openfad::RotatorDSP dsp;
+        dsp.prepare (sampleRate, probeBlockSize, 2);
+        auto buffer = juce::AudioBuffer<float> (2, probeBlockSize);
+
+        auto fill = [&buffer] (int offset)
+        {
+            for (int channel = 0; channel < 2; ++channel)
+                for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                {
+                    const auto time = static_cast<float> (offset + sample + channel * 11);
+                    buffer.setSample (channel, sample,
+                                      0.28f * std::sin (time * 0.61f)
+                                      + 0.14f * std::sin (time * 0.17f));
+                }
+        };
+
+        for (int block = 0; block < warmupBlocks; ++block)
+        {
+            fill (block * probeBlockSize);
+            dsp.process (buffer, start, true);
+        }
+
+        auto previous = buffer.getSample (0, probeBlockSize - 1);
+        auto maximumStep = 0.0f;
+        for (int block = 0; block < transitionBlocks; ++block)
+        {
+            fill ((warmupBlocks + block) * probeBlockSize);
+            dsp.process (buffer, end, true);
+            for (int sample = 0; sample < probeBlockSize; ++sample)
+            {
+                const auto current = buffer.getSample (0, sample);
+                maximumStep = std::max (maximumStep, std::abs (current - previous));
+                previous = current;
+            }
+        }
+
+        if (! std::isfinite (maximumStep) || maximumStep > 0.85f)
+        {
+            std::cerr << label << " discontinuity; maxStep=" << maximumStep << "\n";
+            return false;
+        }
+
+        return true;
+    };
+
+    auto base = activeParams();
+    base.mix = 1.0f;
+    base.modelAmount = 1.0f;
+    base.rotatorAmount = 1.0f;
+    base.dopplerAmount = 1.0f;
+    base.dreamBypass = false;
+    base.dream = 0.9f;
+    base.feedback = 0.86f;
+    base.predelay = 0.025f;
+    base.tail = 6.0f;
+    base.renderMode = 1;
+    base.angle = 35.0f;
+    base.depth = 1.0f;
+    base.motion = 0.9f;
+    base.space = 0.85f;
+    base.inertia = 0.05f;
+
+    auto binaural = base;
+    binaural.renderMode = 0;
+    auto modelBypassed = base;
+    modelBypassed.modelBypass = true;
+    auto dreamBypassed = base;
+    dreamBypassed.dreamBypass = true;
+    auto frozen = base;
+    frozen.freeze = true;
+
+    return measure (base, binaural, "render mode")
+        && measure (binaural, base, "render mode reverse")
+        && measure (base, modelBypassed, "model bypass")
+        && measure (modelBypassed, base, "model bypass reverse")
+        && measure (base, dreamBypassed, "dream bypass")
+        && measure (dreamBypassed, base, "dream bypass reverse")
+        && measure (base, frozen, "dream freeze")
+        && measure (frozen, base, "dream freeze reverse");
+}
+
 bool checkSyncDivisionRates()
 {
     constexpr double sampleRate = 48000.0;
@@ -813,6 +907,14 @@ int main()
                 std::cerr << "DSP regression failed at " << sampleRate << " Hz / " << blockSize << " samples\n";
                 return 1;
             }
+        }
+
+    for (const auto sampleRate : sampleRates)
+        if (! checkDiscreteTransitionsAreContinuous (sampleRate, 64))
+        {
+            std::cerr << "DSP regression failed discrete transition checks at "
+                      << sampleRate << " Hz\n";
+            return 1;
         }
 
     if (! checkInvalidInputIsContained())

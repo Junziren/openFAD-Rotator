@@ -8,12 +8,14 @@
 - Parameter ABI in `Source/Parameters.*` and state schema version `1`.
 - Realtime model, rotor, room-reflection and Dream processing in `Source/RotatorDSP.*`.
 - Rotor DSP splits low/mid/high driver bands and applies causal variable fractional-delay Doppler modulation from the signed horn/drum motion. `Rotator Amount` (amplitude/pan motion) and `Doppler Amount` (fractional-delay pitch motion) are independent controls; Doppler automation uses a 24 ms smoothing ramp and inertia-limited signed rates coast through zero on direction changes.
+- Render-mode, model-bypass, and Dream-bypass automation crossfade between live paths over 24 ms, while model/rotator amount changes use matching bounded ramps to avoid clicks during host recording or rapid UI moves.
+- Dream Freeze ramps its input injection and feedback loop over the same 24 ms window, including MIDI-held freeze transitions.
 - MIDI note hold/release control for transient Dream Freeze.
 - Offline React/WebGL2 WebUI using `gl-matrix`, bundled through JUCE BinaryData and the WebView2/WKWebView resource provider.
 - Eight complete factory programs represented by the native program bank and `Presets/factory.json`.
 - Native preset save/load files under the user application data directory.
 - Native parameter listeners that keep WebUI state synchronized with host automation and project restore.
-- DSP regression and performance targets cover Doppler delay presence, reverse-transition continuity, speaker-model transition continuity, finite-output containment, and callback timing.
+- DSP regression and performance targets cover Doppler delay presence, reverse-transition continuity, discrete-path crossfades, speaker-model transition continuity, finite-output containment, per-instance/offline processor behavior, and callback timing.
 - Versioned authored speaker-response manifests under `Resources/Speakers/`.
 - The embedded speaker manifest is parsed at startup and is the source of truth for the model curve coefficients, with built-in fallback defaults.
 - The native manifest metadata is sent with the editor state, and the WebUI renders the selected model's normalized 20 Hz to 20 kHz response curve.
