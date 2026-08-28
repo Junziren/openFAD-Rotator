@@ -42,6 +42,7 @@ public:
     const openfad::RotatorDSP& getDSP() const noexcept { return dsp; }
     double getCurrentSampleRate() const noexcept { return currentSampleRate; }
     bool isPlaying() const noexcept { return playing.load (std::memory_order_relaxed); }
+    uint32_t getAudioProcessSequence() const noexcept { return audioProcessSequence.load (std::memory_order_relaxed); }
     const juce::String& getCurrentPresetName() const noexcept { return currentPresetName; }
 
     bool savePresetFile (const juce::File& file, const juce::String& name);
@@ -58,6 +59,7 @@ private:
     openfad::RotatorDSP dsp;
     double currentSampleRate = 44100.0;
     std::atomic<bool> playing { false };
+    std::atomic<uint32_t> audioProcessSequence { 0u };
     int currentProgram = 0;
     juce::String currentPresetName;
     std::atomic<float> midiFreeze { 0.0f };

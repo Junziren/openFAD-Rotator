@@ -172,4 +172,68 @@ if (BUILD_TESTING)
     endif()
 
     add_test(NAME openFADRotator_DSPPerformanceTests COMMAND openFADRotator_DSPPerformanceTests)
+
+    juce_add_console_app(openFADRotator_DSPSoakTests
+        PRODUCT_NAME "openFAD Rotator DSP Soak Tests"
+        COMPANY_NAME "openFAD"
+        VERSION ${PROJECT_VERSION}
+    )
+
+    target_sources(openFADRotator_DSPSoakTests PRIVATE
+        Tests/RotatorDSPSoakTests.cpp
+        Source/RotatorDSP.cpp
+    )
+
+    target_link_libraries(openFADRotator_DSPSoakTests PRIVATE
+        juce::juce_audio_basics
+        juce::juce_dsp
+    )
+
+    if (MSVC)
+        target_compile_options(openFADRotator_DSPSoakTests PRIVATE /utf-8)
+    endif()
+
+    add_test(NAME openFADRotator_DSPSoakTests COMMAND openFADRotator_DSPSoakTests)
+
+    juce_add_console_app(openFADRotator_ProcessorTests
+        PRODUCT_NAME "openFAD Rotator Processor Tests"
+        COMPANY_NAME "openFAD"
+        VERSION ${PROJECT_VERSION}
+    )
+
+    target_sources(openFADRotator_ProcessorTests PRIVATE
+        Tests/ProcessorAudioTests.cpp
+        Source/Parameters.cpp
+        Source/RotatorDSP.cpp
+        Source/PluginProcessor.cpp
+        Source/PluginEditor.cpp
+    )
+
+    target_link_libraries(openFADRotator_ProcessorTests PRIVATE
+        OpenFADRotatorWebData
+        juce::juce_audio_utils
+        juce::juce_dsp
+        juce::juce_gui_extra
+    )
+
+    if (TARGET juce::juce_webview2)
+        target_link_libraries(openFADRotator_ProcessorTests PRIVATE juce::juce_webview2)
+    endif()
+
+    target_compile_definitions(openFADRotator_ProcessorTests PRIVATE
+        JUCE_WEB_BROWSER=1
+        JUCE_VST3_CAN_REPLACE_VST2=0
+    )
+
+    if (WIN32)
+        target_compile_definitions(openFADRotator_ProcessorTests PRIVATE JUCE_USE_WIN_WEBVIEW2=1)
+    else()
+        target_compile_definitions(openFADRotator_ProcessorTests PRIVATE JUCE_USE_WIN_WEBVIEW2=0)
+    endif()
+
+    if (MSVC)
+        target_compile_options(openFADRotator_ProcessorTests PRIVATE /utf-8)
+    endif()
+
+    add_test(NAME openFADRotator_ProcessorTests COMMAND openFADRotator_ProcessorTests)
 endif()

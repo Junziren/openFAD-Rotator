@@ -4,6 +4,10 @@
 
 #include <cmath>
 
+#if JUCE_WINDOWS
+ #include <windows.h>
+#endif
+
 namespace
 {
 juce::var makeObject (std::initializer_list<std::pair<juce::String, juce::var>> properties)
@@ -70,9 +74,34 @@ juce::var speakerProfileRows()
 juce::File findWebView2Loader()
 {
 #if JUCE_WINDOWS
-    const auto executable = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
-    const auto loader = executable.getParentDirectory().getChildFile ("WebView2Loader.dll");
-    if (loader.existsAsFile())
+    const auto loaderIn = [] (const juce::File& directory)
+    {
+        const auto loader = directory.getChildFile ("WebView2Loader.dll");
+        return loader.existsAsFile() ? loader : juce::File {};
+    };
+
+    // In a DAW, currentExecutableFile is the host executable rather than the
+    // VST3 module. Resolve this translation unit's own module first so the
+    // loader copied beside the plugin binary is found reliably.
+    HMODULE module = nullptr;
+    const auto address = reinterpret_cast<LPCWSTR> (reinterpret_cast<void*> (&findWebView2Loader));
+    if (GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                            | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            address,
+                            &module) != 0)
+    {
+        wchar_t modulePath[MAX_PATH] = {};
+        const auto length = GetModuleFileNameW (module, modulePath,
+                                                static_cast<DWORD> (sizeof (modulePath) / sizeof (modulePath[0])));
+        if (length > 0 && length < static_cast<DWORD> (sizeof (modulePath) / sizeof (modulePath[0])))
+            if (const auto loader = loaderIn (juce::File (juce::String (modulePath))); loader.existsAsFile())
+                return loader;
+    }
+
+    // Standalone and development launches still use the process executable as
+    // a useful fallback when the module lookup is unavailable.
+    if (const auto loader = loaderIn (juce::File::getSpecialLocation (juce::File::currentExecutableFile)
+                                         .getParentDirectory()); loader.existsAsFile())
         return loader;
 #endif
 
@@ -129,7 +158,8 @@ juce::WebBrowserComponent::Options OpenFADRotatorAudioProcessorEditor::makeBrows
                          .withStatusBarDisabled()
                          .withBuiltInErrorPageDisabled()
                          .withUserDataFolder (juce::File::getSpecialLocation (juce::File::tempDirectory)
-                                                  .getChildFile ("openfad-rotator-webview"));
+                                                  .getChildFile ("openfad-rotator-webview-"
+                                                                 + juce::String (static_cast<int> (GetCurrentProcessId()))));
 
     if (const auto loader = findWebView2Loader(); loader.existsAsFile())
         webView2 = webView2.withDLLLocation (loader);
@@ -283,6 +313,10 @@ void OpenFADRotatorAudioProcessorEditor::sendFullState()
     state->setProperty ("program", processor.getCurrentProgram());
     state->setProperty ("programName", processor.getCurrentPresetName());
     state->setProperty ("programCount", processor.getNumPrograms());
+    juce::Array<juce::var> programNames;
+    for (int index = 0; index < processor.getNumPrograms(); ++index)
+        programNames.add (processor.getProgramName (index));
+    state->setProperty ("programNames", juce::var (programNames));
     browser.emitEventIfBrowserIsVisible ("state", juce::var (state.release()));
 }
 
@@ -313,21 +347,25 @@ void OpenFADRotatorAudioProcessorEditor::openPresetChooser()
             .getChildFile ("Presets"),
         "*.ofr.json;*.json");
 
+    const juce::Component::SafePointer<OpenFADRotatorAudioProcessorEditor> safeThis (this);
     fileChooser->launchAsync (juce::FileBrowserComponent::openMode
                               | juce::FileBrowserComponent::canSelectFiles,
-                              [this] (const juce::FileChooser& chooser)
+                              [safeThis] (const juce::FileChooser& chooser)
                               {
+                                  if (safeThis == nullptr)
+                                      return;
+
                                   const auto file = chooser.getResult();
                                   if (file.existsAsFile())
                                   {
-                                      const auto loaded = processor.loadPresetFile (file);
-                                      markStateDirty();
+                                      const auto loaded = safeThis->processor.loadPresetFile (file);
+                                      safeThis->markStateDirty();
                                       auto notice = std::make_unique<juce::DynamicObject>();
                                       notice->setProperty ("ok", loaded);
                                       notice->setProperty ("message", loaded ? "Preset loaded" : "Could not load preset");
-                                      browser.emitEventIfBrowserIsVisible ("notice", juce::var (notice.release()));
+                                      safeThis->browser.emitEventIfBrowserIsVisible ("notice", juce::var (notice.release()));
                                   }
-                                  fileChooser.reset();
+                                  safeThis->fileChooser.reset();
                               });
 }
 
@@ -347,6 +385,7 @@ void OpenFADRotatorAudioProcessorEditor::sendTelemetry()
         snapshot.bandEnergy[0], snapshot.bandEnergy[1], snapshot.bandEnergy[2]
     });
     telemetry->setProperty ("playing", processor.isPlaying());
+    telemetry->setProperty ("audioSequence", static_cast<double> (processor.getAudioProcessSequence()));
     browser.emitEventIfBrowserIsVisible ("telemetry", juce::var (telemetry.release()));
 }
 

@@ -13,12 +13,12 @@ if ([string]::IsNullOrWhiteSpace($BuildDir)) {
 }
 $BuildDir = (Resolve-Path $BuildDir).Path
 
-Write-Host "[1/7] Validate speaker manifest"
+Write-Host "[1/9] Validate speaker manifest"
 Push-Location (Join-Path $root "WebUI")
 try {
     & npm run validate:manifest
     if ($LASTEXITCODE -ne 0) { throw "Speaker manifest validation failed" }
-    Write-Host "[2/7] Build WebUI"
+    Write-Host "[2/9] Build WebUI"
     & npm run build
     if ($LASTEXITCODE -ne 0) { throw "WebUI build failed" }
 }
@@ -26,9 +26,11 @@ finally {
     Pop-Location
 }
 
-Write-Host "[3/7] Build native targets"
+Write-Host "[3/9] Build native targets"
 $standaloneExe = Join-Path $BuildDir "openFADRotator_artefacts\$Configuration\Standalone\openFAD Rotator.exe"
 $dspTestExe = Join-Path $BuildDir "openFADRotator_DSPTests_artefacts\$Configuration\openFADRotator_DSPTests.exe"
+$dspSoakTestExe = Join-Path $BuildDir "openFADRotator_DSPSoakTests_artefacts\$Configuration\openFADRotator_DSPSoakTests.exe"
+$processorTestExe = Join-Path $BuildDir "openFADRotator_ProcessorTests_artefacts\$Configuration\openFADRotator_ProcessorTests.exe"
 $runningStandalone = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $standaloneExe }
 if ($runningStandalone) {
     throw "Close the running Standalone before building: $standaloneExe"
@@ -57,7 +59,7 @@ if (-not ($vst3LoaderCandidates | Where-Object { Test-Path -LiteralPath $_ -Path
 }
 
 if (-not $SkipPluginval) {
-    Write-Host "[4/7] Run pluginval"
+    Write-Host "[4/9] Run pluginval"
     if (-not (Test-Path -LiteralPath $PluginvalPath -PathType Leaf)) {
         throw "pluginval not found at $PluginvalPath; pass -SkipPluginval or provide -PluginvalPath"
     }
@@ -82,10 +84,10 @@ if (-not $SkipPluginval) {
     Write-Host "pluginval results: $results"
 }
 else {
-    Write-Host "[4/7] pluginval skipped"
+    Write-Host "[4/9] pluginval skipped"
 }
 
-Write-Host "[5/7] Run DSP regression tests"
+Write-Host "[5/9] Run DSP regression tests"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPTests
 if ($LASTEXITCODE -ne 0) { throw "DSP regression test build failed" }
 if (-not (Test-Path -LiteralPath $dspTestExe -PathType Leaf)) {
@@ -94,7 +96,7 @@ if (-not (Test-Path -LiteralPath $dspTestExe -PathType Leaf)) {
 & $dspTestExe
 if ($LASTEXITCODE -ne 0) { throw "DSP regression tests failed with exit code $LASTEXITCODE" }
 
-Write-Host "[6/7] Run DSP performance checks"
+Write-Host "[6/9] Run DSP performance checks"
 $dspPerformanceTestExe = Join-Path $BuildDir "openFADRotator_DSPPerformanceTests_artefacts\$Configuration\openFADRotator_DSPPerformanceTests.exe"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPPerformanceTests
 if ($LASTEXITCODE -ne 0) { throw "DSP performance test build failed" }
@@ -104,8 +106,28 @@ if (-not (Test-Path -LiteralPath $dspPerformanceTestExe -PathType Leaf)) {
 & $dspPerformanceTestExe
 if ($LASTEXITCODE -ne 0) { throw "DSP performance checks failed with exit code $LASTEXITCODE" }
 
-Write-Host "[7/7] Windows validation complete"
+Write-Host "[7/9] Run processor audio-chain checks"
+& cmake --build $BuildDir --config $Configuration --target openFADRotator_ProcessorTests
+if ($LASTEXITCODE -ne 0) { throw "Processor test build failed" }
+if (-not (Test-Path -LiteralPath $processorTestExe -PathType Leaf)) {
+    throw "Missing processor test executable: $processorTestExe"
+}
+& $processorTestExe
+if ($LASTEXITCODE -ne 0) { throw "Processor audio-chain checks failed with exit code $LASTEXITCODE" }
+
+Write-Host "[8/9] Run DSP soak checks"
+& cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPSoakTests
+if ($LASTEXITCODE -ne 0) { throw "DSP soak test build failed with exit code $LASTEXITCODE" }
+if (-not (Test-Path -LiteralPath $dspSoakTestExe -PathType Leaf)) {
+    throw "Missing DSP soak test executable: $dspSoakTestExe"
+}
+& $dspSoakTestExe
+if ($LASTEXITCODE -ne 0) { throw "DSP soak checks failed with exit code $LASTEXITCODE" }
+
+Write-Host "[9/9] Windows validation complete"
 Write-Host "VST3: $vst3"
 Write-Host "Standalone: $(Join-Path $standaloneDir 'openFAD Rotator.exe')"
 Write-Host "DSP tests: $dspTestExe"
 Write-Host "DSP performance: $dspPerformanceTestExe"
+Write-Host "DSP soak: $dspSoakTestExe"
+Write-Host "Processor tests: $processorTestExe"

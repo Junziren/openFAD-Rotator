@@ -49,6 +49,7 @@ struct FactoryProgram
     float roomDamping = 0.55f;
     float modelAmount = 1.0f;
     float rotatorAmount = 1.0f;
+    float dopplerAmount = 1.0f;
     bool dreamBypass = false;
     float predelay = 0.035f;
     bool predelaySync = false;
@@ -248,8 +249,10 @@ bool OpenFADRotatorAudioProcessor::isBusesLayoutSupported (const BusesLayout& la
     const auto input = layouts.getMainInputChannelSet();
     if (output != juce::AudioChannelSet::mono() && output != juce::AudioChannelSet::stereo())
         return false;
-    return input == juce::AudioChannelSet::disabled()
-        || input == juce::AudioChannelSet::mono()
+    // This processor is an audio effect, so a disabled main input would make
+    // processBlock clear the output and silently produce silence. Keep the
+    // input bus active and let hosts negotiate mono or stereo layouts only.
+    return input == juce::AudioChannelSet::mono()
         || input == juce::AudioChannelSet::stereo();
 }
 
@@ -293,6 +296,7 @@ openfad::RotatorDSP::Params OpenFADRotatorAudioProcessor::readParams() const
     p.roomDamping = value<float> (parameters, openfad::params::id::roomDamping, 0.55f);
     p.modelAmount = value<float> (parameters, openfad::params::id::modelAmount, 1.0f);
     p.rotatorAmount = value<float> (parameters, openfad::params::id::rotatorAmount, 1.0f);
+    p.dopplerAmount = value<float> (parameters, openfad::params::id::dopplerAmount, 1.0f);
     p.dreamBypass = value<float> (parameters, openfad::params::id::dreamBypass, 0.0f) > 0.5f;
     p.predelay = value<float> (parameters, openfad::params::id::predelay, 0.035f);
     p.predelaySync = value<float> (parameters, openfad::params::id::predelaySync, 0.0f) > 0.5f;
@@ -329,15 +333,12 @@ int OpenFADRotatorAudioProcessor::readChoice (const char* parameterId,
     if (parameter == nullptr || raw == nullptr)
         return fallback;
 
-    if (const auto* ranged = dynamic_cast<const juce::RangedAudioParameter*> (parameter))
-    {
-        const auto normalized = raw->load();
-        if (std::isfinite (normalized))
-        {
-            const auto actual = ranged->getNormalisableRange().convertFrom0to1 (normalized);
-            return juce::jlimit (0, maximumIndex, juce::roundToInt (actual));
-        }
-    }
+    // APVTS exposes the denormalised value through getRawParameterValue().
+    // AudioParameterChoice therefore returns its integer index directly; it
+    // must not be converted from 0..1 a second time.
+    const auto actual = raw->load();
+    if (std::isfinite (actual))
+        return juce::jlimit (0, maximumIndex, juce::roundToInt (actual));
 
     return fallback;
 }
@@ -366,6 +367,7 @@ void OpenFADRotatorAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
 
     playing.store (isCurrentlyPlaying, std::memory_order_relaxed);
     dsp.process (buffer, readParams(), isCurrentlyPlaying);
+    audioProcessSequence.fetch_add (1u, std::memory_order_relaxed);
 }
 
 void OpenFADRotatorAudioProcessor::setCurrentProgram (int index)
@@ -422,6 +424,7 @@ void OpenFADRotatorAudioProcessor::applyProgram (int index)
     set (openfad::params::id::roomDamping, preset.roomDamping);
     set (openfad::params::id::modelAmount, preset.modelAmount);
     set (openfad::params::id::rotatorAmount, preset.rotatorAmount);
+    set (openfad::params::id::dopplerAmount, preset.dopplerAmount);
     set (openfad::params::id::dreamBypass, preset.dreamBypass ? 1.0f : 0.0f);
     set (openfad::params::id::predelay, preset.predelay);
     set (openfad::params::id::predelaySync, preset.predelaySync ? 1.0f : 0.0f);

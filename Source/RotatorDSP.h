@@ -63,6 +63,7 @@ public:
         float roomDamping = 0.55f;
         float modelAmount = 1.0f;
         float rotatorAmount = 1.0f;
+        float dopplerAmount = 1.0f;
         bool dreamBypass = false;
         float predelay = 0.035f;
         bool predelaySync = false;
@@ -123,6 +124,24 @@ public:
     }
 
 private:
+    struct SpeakerBands
+    {
+        float low = 0.0f;
+        float mid = 0.0f;
+        float high = 0.0f;
+    };
+
+    struct SpeakerVoicing
+    {
+        float lowCut = 0.015f;
+        float highCut = 0.24f;
+        float lowGain = 1.18f;
+        float midGain = 1.22f;
+        float highGain = 0.66f;
+        float modelGain = 1.0f;
+        float drive = 0.0f;
+    };
+
     struct ChannelState
     {
         float low = 0.0f;
@@ -136,21 +155,32 @@ private:
         std::array<float, 8> diffusion{};
     };
 
-    float processSpeaker (float input, ChannelState& state, const Params& params);
+    SpeakerBands processSpeaker (float input,
+                                 ChannelState& state,
+                                 const Params& params,
+                                 const SpeakerVoicing& voicing);
+    float processDoppler (float input,
+                          std::vector<float>& delay,
+                          float phase,
+                          float radius,
+                          float amount) noexcept;
+    float processBinauralDelay (float input,
+                                std::vector<float>& delay,
+                                float delaySamples) noexcept;
     float processDream (float input, ChannelState& state, int channel, const Params& params);
     float currentRateForParams (const Params& params) const noexcept;
     float modelGain (int model) const noexcept;
-    float modelLowCut (int model) const noexcept;
-    float modelHighCut (int model) const noexcept;
-    float modelLowGain (int model) const noexcept;
-    float modelMidGain (int model) const noexcept;
-    float modelHighGain (int model) const noexcept;
 
     double sampleRate = 44100.0;
     int numChannels = 2;
     float rotorPhase = 0.0f;
     float rotorRate = 0.0f;
     float targetRotorRate = 0.0f;
+    float drumPhase = 0.0f;
+    float drumRate = 0.0f;
+    float targetDrumRate = 0.0f;
+    float secondaryHornPhase = 0.0f;
+    float secondaryDrumPhase = 0.0f;
     float inputPeak = 0.0f;
     float outputPeak = 0.0f;
     std::array<float, 3> bandEnergy { 0.0f, 0.0f, 0.0f };
@@ -165,10 +195,27 @@ private:
     std::array<ChannelState, 2> channelStates;
     std::vector<float> delayLeft;
     std::vector<float> delayRight;
+    std::vector<float> dopplerLowLeft;
+    std::vector<float> dopplerLowRight;
+    std::vector<float> dopplerHighLeft;
+    std::vector<float> dopplerHighRight;
+    std::vector<float> binauralDelayLeft;
+    std::vector<float> binauralDelayRight;
     size_t delayWrite = 0;
+    size_t dopplerWrite = 0;
+    size_t binauralWrite = 0;
     juce::SmoothedValue<float> inputGainSmoother;
     juce::SmoothedValue<float> outputGainSmoother;
     juce::SmoothedValue<float> mixSmoother;
+    juce::SmoothedValue<float> dopplerAmountSmoother;
+    juce::SmoothedValue<float> speakerLowCutSmoother;
+    juce::SmoothedValue<float> speakerHighCutSmoother;
+    juce::SmoothedValue<float> speakerLowGainSmoother;
+    juce::SmoothedValue<float> speakerMidGainSmoother;
+    juce::SmoothedValue<float> speakerHighGainSmoother;
+    juce::SmoothedValue<float> speakerModelGainSmoother;
+    juce::SmoothedValue<float> speakerDriveSmoother;
+    juce::SmoothedValue<float> binauralAzimuthSmoother;
     bool smoothersInitialised = false;
     SpeakerProfiles speakerProfiles = defaultSpeakerProfiles();
 };

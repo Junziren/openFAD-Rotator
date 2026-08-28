@@ -25,6 +25,10 @@ The page calls the JUCE native function `rotatorCommand` with JSON payloads:
 
 Native emits `state` and `telemetry` events. Native parameter state remains authoritative.
 
+The `state` event also carries `program`, `programName`, `programNames`, and
+`programCount`; the native editor uses these fields to keep the program strip
+aligned with the host factory bank.
+
 Additional native commands:
 
 - `{ "type": "previousProgram" }` / `{ "type": "nextProgram" }`
@@ -43,3 +47,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\write-artifact-man
 ```
 
 The manifest covers every file inside the VST3 bundle plus the Standalone executable and WebView2 loader. It is evidence for comparison, not a code-signing or installer result.
+
+To create an auditable offline Windows bundle after validation:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\package-windows-release.ps1 -Configuration Release
+```
+
+The bundle includes the VST3, Standalone executable, WebView2 loader, license/notices, validation documents, artifact manifest, and SHA-256 metadata. It does not install the WebView2 Evergreen Runtime and is not a clean-machine installer.

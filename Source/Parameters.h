@@ -32,6 +32,7 @@ inline constexpr auto earlyReflections = "earlyReflections";
 inline constexpr auto roomDamping = "roomDamping";
 inline constexpr auto modelAmount = "modelAmount";
 inline constexpr auto rotatorAmount = "rotatorAmount";
+inline constexpr auto dopplerAmount = "dopplerAmount";
 inline constexpr auto dreamBypass = "dreamBypass";
 inline constexpr auto predelay = "predelay";
 inline constexpr auto predelaySync = "predelaySync";

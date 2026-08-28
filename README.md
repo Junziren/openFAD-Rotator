@@ -7,11 +7,13 @@
 - JUCE processor/editor with mono and stereo input support and stereo output.
 - Parameter ABI in `Source/Parameters.*` and state schema version `1`.
 - Realtime model, rotor, room-reflection and Dream processing in `Source/RotatorDSP.*`.
+- Rotor DSP splits low/mid/high driver bands and applies causal variable fractional-delay Doppler modulation from the signed horn/drum motion. `Rotator Amount` (amplitude/pan motion) and `Doppler Amount` (fractional-delay pitch motion) are independent controls; Doppler automation uses a 24 ms smoothing ramp and inertia-limited signed rates coast through zero on direction changes.
 - MIDI note hold/release control for transient Dream Freeze.
 - Offline React/WebGL2 WebUI using `gl-matrix`, bundled through JUCE BinaryData and the WebView2/WKWebView resource provider.
 - Eight complete factory programs represented by the native program bank and `Presets/factory.json`.
 - Native preset save/load files under the user application data directory.
 - Native parameter listeners that keep WebUI state synchronized with host automation and project restore.
+- DSP regression and performance targets cover Doppler delay presence, reverse-transition continuity, speaker-model transition continuity, finite-output containment, and callback timing.
 - Versioned authored speaker-response manifests under `Resources/Speakers/`.
 - The embedded speaker manifest is parsed at startup and is the source of truth for the model curve coefficients, with built-in fallback defaults.
 - The native manifest metadata is sent with the editor state, and the WebUI renders the selected model's normalized 20 Hz to 20 kHz response curve.
@@ -34,13 +36,21 @@ cmake -S . -B build-vs -G "Visual Studio 18 2026" -A x64 `
 cmake --build build-vs --config Release --target openFADRotator_All
 ```
 
-For a repeatable Windows smoke build, manifest check, artifact check, pluginval run, DSP regression, and Release performance check:
+For a repeatable Windows smoke build, manifest check, artifact check, pluginval run, DSP regression, Release performance check, Processor host-contract check, and long-run DSP soak:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\validate-windows.ps1 -Configuration Release
 ```
 
 Use `-SkipPluginval` when only the local build and resource checks are needed.
+
+After validation, create an auditable offline Windows bundle with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\package-windows-release.ps1 -Configuration Release
+```
+
+The bundle still requires the Microsoft WebView2 Evergreen Runtime on the target machine.
 
 On Windows, the build requires the WebView2 SDK through JUCE and copies `Resources/WebView2/WebView2Loader.dll` beside the generated Standalone and VST3 binaries. The target machine also needs the Microsoft WebView2 Evergreen Runtime; the loader DLL and the runtime are separate dependencies.
 
@@ -60,4 +70,4 @@ Release builds do not use localhost, npm, Python, a CDN, remote fonts, or files 
 
 ## Known limits of this first pass
 
-The current DSP remains a playable prototype: speaker manifests are authored response archetypes rather than measured commercial curves, and the Binaural mode is a generic approximation until a redistributable HRTF asset and convolution path are added. Windows VST3/Standalone and pluginval are verified; DAW behavior, macOS AU/AUv3, performance profiling, installers, signing, and notarization remain release gates.
+The current DSP remains a playable prototype: speaker manifests are authored response archetypes rather than measured commercial curves, and the Binaural mode uses a lightweight parameterised HRTF-style approximation (short ITD, frequency-dependent head shadow and crossfeed) until a redistributable HRTF asset and convolution path are added. Windows VST3/Standalone, the embedded WebGL2 visual, pluginval, local host-contract checks, local performance evidence, and deterministic DSP soak are verified; real DAW behavior, macOS AU/AUv3, cross-machine profiling, clean-machine installers, signing, and notarization remain release gates.

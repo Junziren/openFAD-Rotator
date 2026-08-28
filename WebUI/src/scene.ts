@@ -11,6 +11,7 @@ export type SceneControls = {
   rotorRate: number;
   direction: 1 | -1;
   rotatorAmount: number;
+  dopplerAmount: number;
   motion: number;
   depth: number;
   reducedMotion: boolean;
@@ -20,6 +21,7 @@ export type Telemetry = {
   rotorPhase?: number;
   rotorRate?: number;
   direction?: number;
+  audioSequence?: number;
   inputPeak?: number;
   outputPeak?: number;
   bands?: number[];
@@ -952,6 +954,7 @@ export class AcousticLabScene {
     rotorRate: 0.8,
     direction: 1,
     rotatorAmount: 1,
+    dopplerAmount: 1,
     motion: 0.35,
     depth: 0.75,
     reducedMotion: false,
@@ -961,6 +964,11 @@ export class AcousticLabScene {
   private lastFrameTime = 0;
   private hornPhase = 0.38;
   private drumPhase = 0.92;
+  private visualSignedRate = 0.8;
+  private visualDirection: 1 | -1 = 1;
+  private telemetrySignedRate: number | undefined;
+  private telemetryRateUpdatedAt = -Infinity;
+  private lastAudioSequence: number | undefined;
   // The orthographic composition is part of the visual identity. Keep it stable
   // so the rotor motion, telemetry labels, and particle trails stay comparable
   // across plugin hosts and window sizes.
@@ -1184,6 +1192,18 @@ export class AcousticLabScene {
 
   updateTelemetry(telemetry: Telemetry) {
     if (typeof telemetry.direction === "number") this.controls.direction = telemetry.direction < 0.5 ? 1 : -1;
+    const sequence = telemetry.audioSequence;
+    const hasFreshAudio = typeof sequence === "number"
+      && Number.isFinite(sequence)
+      && (this.lastAudioSequence === undefined || sequence !== this.lastAudioSequence);
+    if (hasFreshAudio) this.lastAudioSequence = sequence;
+    if (hasFreshAudio && typeof telemetry.rotorRate === "number" && Number.isFinite(telemetry.rotorRate)) {
+      const magnitude = Math.min(20, Math.max(0, telemetry.rotorRate));
+      if (magnitude > 0.0001 || sequence! > 0 || telemetry.playing === true) {
+        this.telemetrySignedRate = magnitude * this.controls.direction;
+        this.telemetryRateUpdatedAt = performance.now();
+      }
+    }
     if (telemetry.bands?.length) {
       this.setAudioFrame({
         low: (telemetry.bands[0] ?? 0) * 18,
@@ -1201,9 +1221,10 @@ export class AcousticLabScene {
 
   private particleEnergy(band: number) {
     const response = this.controls.motion;
-    if (band === 0) return Math.sqrt(this.audio.high * response);
-    if (band === 1) return Math.sqrt(this.audio.low * response);
-    return Math.sqrt(this.audio.mid * response);
+    const doppler = 0.18 + 0.82 * clamp01(this.controls.dopplerAmount);
+    if (band === 0) return Math.sqrt(this.audio.high * response * doppler);
+    if (band === 1) return Math.sqrt(this.audio.low * response * doppler);
+    return Math.sqrt(this.audio.mid * response * (0.72 + doppler * 0.28));
   }
 
   private respawnParticle(index: number, initial = false) {
@@ -1220,19 +1241,19 @@ export class AcousticLabScene {
     let radius = 0.20;
     let y = 0.04;
     let outward = 0.14 + energy * 0.34;
-    let swirl = this.controls.direction * (0.10 + energy * 0.18);
+    let swirl = this.visualDirection * (0.10 + energy * 0.18);
     if (band === 0) {
       angle = this.hornPhase + (randomA > 0.5 ? Math.PI : 0) + (randomB - 0.5) * 0.26;
       radius = 0.38 + randomC * 0.20;
       y = 1.14 + (randomB - 0.5) * 0.20;
       outward = 0.28 + energy * 0.74;
-      swirl = this.controls.direction * (0.18 + energy * 0.42);
+      swirl = this.visualDirection * (0.18 + energy * 0.42);
     } else if (band === 1) {
       angle = this.drumPhase + (randomB - 0.5) * 0.34;
       radius = 0.86 + randomC * 0.20;
       y = -0.88 + (randomA - 0.5) * 0.46;
       outward = 0.20 + energy * 0.58;
-      swirl = -this.controls.direction * (0.15 + energy * 0.34);
+      swirl = -this.visualDirection * (0.15 + energy * 0.34);
     }
 
     const cosine = Math.cos(angle);
@@ -1283,7 +1304,7 @@ export class AcousticLabScene {
 
       const energy = this.particleEnergy(band);
       const centerY = band === 0 ? 1.14 : (band === 1 ? -0.88 : 0.04);
-      const direction = band === 1 ? -this.controls.direction : this.controls.direction;
+      const direction = band === 1 ? -this.visualDirection : this.visualDirection;
       const gravity = (0.075 + energy * 0.24) / (0.44 + radius * radius);
       const tangent = direction * (0.055 + energy * (band === 2 ? 0.18 : 0.34));
       const inverseRadius = 1 / radius;
@@ -1321,7 +1342,8 @@ export class AcousticLabScene {
       this.particleVertices[vertexOffset + 5] = band;
 
       const trailOffset = index * 12;
-      const trailLength = 0.075 + seed * 0.075 + energy * 0.13;
+      const trailScale = 0.42 + clamp01(this.controls.dopplerAmount) * 0.58;
+      const trailLength = (0.075 + seed * 0.075 + energy * 0.13) * trailScale;
       this.particleTrailVertices[trailOffset] = x - velocityX * trailLength;
       this.particleTrailVertices[trailOffset + 1] = y - velocityY * trailLength;
       this.particleTrailVertices[trailOffset + 2] = z - velocityZ * trailLength;
@@ -1847,6 +1869,7 @@ export class AcousticLabScene {
     const low = this.audio.low * this.controls.motion;
     const mid = this.audio.mid * this.controls.motion;
     const high = this.audio.high * this.controls.motion;
+    const dopplerGlow = 0.04 + clamp01(this.controls.dopplerAmount) * 0.18;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.renderTarget.sceneFramebuffer);
     gl.viewport(0, 0, this.renderWidth, this.renderHeight);
@@ -1866,7 +1889,7 @@ export class AcousticLabScene {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     gl.depthMask(false);
-    this.renderParticles(0.98, 0.12);
+    this.renderParticles(0.98, 0.08 + dopplerGlow);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
     gl.bindVertexArray(null);
@@ -1906,7 +1929,7 @@ export class AcousticLabScene {
     gl.uniformMatrix4fv(this.mainUniforms.projection, false, this.projection);
     gl.uniformMatrix4fv(this.mainUniforms.view, false, this.view);
     this.renderBloomAccents(low, mid, high);
-    this.renderParticles(0.50, 2.9);
+    this.renderParticles(0.50, 2.20 + dopplerGlow * 4.0);
     gl.disable(gl.BLEND);
 
     gl.useProgram(this.blurProgram);
@@ -1982,12 +2005,20 @@ export class AcousticLabScene {
     const amount = 0.22 + this.controls.rotatorAmount * 0.78;
     const hornBoost = 1 + this.audio.high * this.controls.motion * 0.42;
     const drumBoost = 1 + this.audio.low * this.controls.motion * 0.30;
-    // Drive the visual phase from the target parameter so UI changes are
-    // immediate even when a host pauses audio callbacks or telemetry is stale.
-    // The native actual rate remains a separate readout in App.tsx.
-    const rotorRate = Math.max(0, this.controls.rotorRate);
-    this.hornPhase += this.controls.direction * rotorRate * hornBoost * Math.PI * 2 * delta * amount * motion;
-    this.drumPhase -= this.controls.direction * rotorRate * 0.46 * drumBoost * Math.PI * 2 * delta * amount * motion;
+    // Prefer a fresh native signed rate so the visual rotor coasts through
+    // zero with the audio engine. Fall back to the target when no callback has
+    // arrived recently (browser preview or a paused Standalone host).
+    const nativeRateIsFresh = time - this.telemetryRateUpdatedAt < 0.18;
+    const targetSignedRate = nativeRateIsFresh && this.telemetrySignedRate !== undefined
+      ? this.telemetrySignedRate
+      : this.controls.direction * Math.max(0, this.controls.rotorRate);
+    const rateSmoothing = 1 - Math.exp(-delta / 0.055);
+    this.visualSignedRate += (targetSignedRate - this.visualSignedRate) * rateSmoothing;
+    if (Math.abs(this.visualSignedRate) > 0.0005)
+      this.visualDirection = this.visualSignedRate < 0 ? -1 : 1;
+
+    this.hornPhase += this.visualSignedRate * hornBoost * Math.PI * 2 * delta * amount * motion;
+    this.drumPhase -= this.visualSignedRate * 0.46 * drumBoost * Math.PI * 2 * delta * amount * motion;
     this.updateParticles(delta * motion);
     this.updateCamera();
     this.renderScene();

@@ -81,6 +81,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (floatParameter (id::space, "Space", 0.0f, 1.0f, 0.3f));
     layout.add (floatParameter (id::dream, "Dream", 0.0f, 1.0f, 0.25f));
 
+    // Append new parameters so existing host automation/index ordering remains stable.
+    layout.add (floatParameter (id::dopplerAmount, "Doppler Amount", 0.0f, 1.0f, 1.0f));
+
     return layout;
 }
 

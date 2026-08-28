@@ -1,4 +1,4 @@
-import type { NativeState } from "./nativeBridge";
+import type { NativeState, SpeakerProfile } from "./nativeBridge";
 
 export const speedModeOptions = ["STOP", "SLOW", "FAST", "FREE", "SYNC"] as const;
 export const syncDivisionOptions = ["1/32", "1/16", "1/8", "1/4", "1/2", "1 BAR", "2 BARS", "4 BARS", "8 BARS"] as const;
@@ -16,6 +16,17 @@ export const structureOptions = ["Horn + Drum", "Eccentric Ports", "Prism Diffus
 export const feedModeOptions = ["Mono Sum", "Linked Stereo", "Dual Rotor"] as const;
 export const renderModeOptions = ["Binaural", "Speaker Stereo"] as const;
 export const qualityOptions = ["Live", "Studio"] as const;
+
+export const defaultSpeakerProfiles: readonly SpeakerProfile[] = [
+  { id: "pocket-radio", name: "Pocket Radio", lowCut: 0.015, highCut: 0.24, lowGain: 1.18, midGain: 1.22, highGain: 0.66, description: "Small enclosure, forward midrange, softened air." },
+  { id: "console-coax", name: "Console Coax", lowCut: 0.009, highCut: 0.35, lowGain: 1.08, midGain: 1.08, highGain: 0.94, description: "Warm low-mid body with restrained top end." },
+  { id: "cinema-horn", name: "Cinema Horn", lowCut: 0.012, highCut: 0.42, lowGain: 1.24, midGain: 0.96, highGain: 1.18, description: "Large low-end bloom and articulate horn presence." },
+  { id: "british-shelf", name: "British Shelf", lowCut: 0.006, highCut: 0.38, lowGain: 1.04, midGain: 1.12, highGain: 0.88, description: "Soft upper shelf with a lightly voiced center." },
+  { id: "american-tower", name: "American Tower", lowCut: 0.004, highCut: 0.48, lowGain: 1.12, midGain: 1.02, highGain: 1.12, description: "Broad low-frequency scale and bright projection." },
+  { id: "nearfield-monitor", name: "Nearfield Monitor", lowCut: 0.002, highCut: 0.62, lowGain: 0.98, midGain: 1.0, highGain: 1.26, description: "Tight low end and extended, revealing highs." },
+  { id: "pa-stack", name: "PA Stack", lowCut: 0.02, highCut: 0.31, lowGain: 1.3, midGain: 0.9, highGain: 0.72, description: "Dense low push, controlled mids, roughened top." },
+  { id: "modern-reference", name: "Modern Reference", lowCut: 0.001, highCut: 0.8, lowGain: 1.0, midGain: 1.04, highGain: 1.16, description: "Wide-range neutral base with a polished air band." },
+];
 
 export type PluginValues = {
   inputTrim: number;
@@ -44,6 +55,7 @@ export type PluginValues = {
   roomDamping: number;
   modelAmount: number;
   rotatorAmount: number;
+  dopplerAmount: number;
   dreamBypass: boolean;
   predelay: number;
   predelaySync: boolean;
@@ -87,6 +99,7 @@ export const defaultPluginValues: PluginValues = {
   roomDamping: 0.55,
   modelAmount: 1,
   rotatorAmount: 1,
+  dopplerAmount: 1,
   dreamBypass: false,
   predelay: 0.035,
   predelaySync: false,
@@ -120,6 +133,7 @@ const ranges: Partial<Record<keyof PluginValues, Range>> = {
   roomDamping: { minimum: 0, maximum: 1 },
   modelAmount: { minimum: 0, maximum: 1 },
   rotatorAmount: { minimum: 0, maximum: 1 },
+  dopplerAmount: { minimum: 0, maximum: 1 },
   predelay: { minimum: 0, maximum: 0.25 },
   diffusion: { minimum: 0, maximum: 1 },
   tail: { minimum: 0.2, maximum: 12 },
@@ -193,6 +207,7 @@ export function parsePluginValues(state: NativeState, bpmFallback = defaultPlugi
     roomDamping: readValue(state, "roomDamping", defaultPluginValues.roomDamping),
     modelAmount: readValue(state, "modelAmount", defaultPluginValues.modelAmount),
     rotatorAmount: readValue(state, "rotatorAmount", defaultPluginValues.rotatorAmount),
+    dopplerAmount: readValue(state, "dopplerAmount", defaultPluginValues.dopplerAmount),
     dreamBypass: readBoolean(state, "dreamBypass", defaultPluginValues.dreamBypass),
     predelay: readValue(state, "predelay", defaultPluginValues.predelay),
     predelaySync: readBoolean(state, "predelaySync", defaultPluginValues.predelaySync),
@@ -233,4 +248,3 @@ export function normalisedForParameter(id: keyof PluginValues, actualValue: numb
   if (!range) return clamp(value, 0, 1);
   return clamp((value - range.minimum) / (range.maximum - range.minimum), 0, 1);
 }
-
