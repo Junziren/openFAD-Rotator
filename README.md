@@ -38,7 +38,7 @@ cmake -S . -B build-vs -G "Visual Studio 18 2026" -A x64 `
 cmake --build build-vs --config Release --target openFADRotator_All
 ```
 
-For a repeatable Windows smoke build, manifest check, artifact check, pluginval run, DSP regression, Release performance check, Processor host-contract check, and long-run DSP soak:
+For a repeatable Windows smoke build, manifest check, artifact check, pluginval run, DSP regression, Release performance check, Processor host-contract check, VST3 bundle host smoke, and long-run DSP soak:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\validate-windows.ps1 -Configuration Release

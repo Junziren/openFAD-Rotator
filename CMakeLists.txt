@@ -236,4 +236,35 @@ if (BUILD_TESTING)
     endif()
 
     add_test(NAME openFADRotator_ProcessorTests COMMAND openFADRotator_ProcessorTests)
+
+    juce_add_console_app(openFADRotator_VST3HostSmoke
+        PRODUCT_NAME "openFAD Rotator VST3 Host Smoke"
+        COMPANY_NAME "openFAD"
+        VERSION ${PROJECT_VERSION}
+    )
+
+    target_sources(openFADRotator_VST3HostSmoke PRIVATE
+        Tests/VST3HostSmokeTests.cpp
+    )
+
+    target_link_libraries(openFADRotator_VST3HostSmoke PRIVATE
+        juce::juce_audio_processors_headless
+    )
+
+    target_compile_definitions(openFADRotator_VST3HostSmoke PRIVATE
+        JUCE_PLUGINHOST_VST3=1
+        JUCE_PLUGINHOST_VST=0
+        JUCE_PLUGINHOST_AU=0
+        JUCE_PLUGINHOST_LV2=0
+        JUCE_PLUGINHOST_LADSPA=0
+    )
+
+    if (MSVC)
+        target_compile_options(openFADRotator_VST3HostSmoke PRIVATE /utf-8)
+    endif()
+
+    add_test(NAME openFADRotator_VST3HostSmoke
+        COMMAND openFADRotator_VST3HostSmoke
+            "$<TARGET_FILE_DIR:openFADRotator_VST3>/openFAD Rotator.vst3"
+    )
 endif()

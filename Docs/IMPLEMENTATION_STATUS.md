@@ -45,6 +45,9 @@
 - Processor checks also cover per-instance state isolation, no-PlayHead/offline
   processing, rendered Dream tail after an impulse, and monotonic audio-process
   telemetry sequencing.
+- JUCE headless VST3 host smoke loads the built `.vst3` bundle and checks the
+  stereo bus contract, all 40 product parameters, factory programs, gestures,
+  state restore, offline audio/Dream tail output, and multi-instance isolation.
 - Deterministic DSP soak checks cover 120 seconds at 48 kHz plus 20 seconds at 96 kHz while cycling speed, direction, Doppler, speaker, room, and Dream parameters.
 - Audited offline Windows Release bundle contains VST3, Standalone, WebView2 loader, license/notices, validation documents, an artifact manifest, and SHA-256 package metadata.
 - Installed Release VST3 copy revalidated with `D:\pluginval\pluginval.exe` at strictness level 10.
@@ -55,7 +58,9 @@
 
 - Measured or licensed commercial speaker curves.
 - Redistributable SOFA/HRTF data and convolution-based Studio processing.
-- Real DAW scanning, automation recording, project reload, offline export, and multi-instance behavior.
+- Real DAW scanning, automation recording, project reload, offline export, and
+  DAW-level multi-instance behavior. The local VST3 host smoke wrapper covers
+  bundle loading and plugin-instance isolation but is not a full DAW.
 - macOS VST3, AU/AUv3, Logic Pro validation, signing, and notarization.
 - Installer, upgrade/uninstall, clean-machine and offline-runtime validation.
 - Steinberg VST3 Validator (an external validator path is not configured on this machine).

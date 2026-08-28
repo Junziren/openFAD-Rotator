@@ -74,6 +74,25 @@ ctest --test-dir build-vs -C Release --output-on-failure -R openFADRotator_Proce
 
 Result: passed. The processor-level probe checks the complete parameter ID contract, mono/stereo effect layouts, rejection of a disabled input bus, finite mono processing, factory program writes, gesture writes, project-state and user-preset round trips, denormalised Choice reads, independent `Doppler Amount` state, host BPM Sync response, per-instance state isolation, no-PlayHead processing, offline Dream-tail rendering after an impulse, and monotonic audio-process sequencing.
 
+### VST3 host smoke wrapper
+
+```powershell
+cmake --build build-vs --config Release --target openFADRotator_VST3HostSmoke
+build-vs/openFADRotator_VST3HostSmoke_artefacts/Release/openFADRotator_VST3HostSmoke.exe `
+  "build-vs/openFADRotator_artefacts/Release/VST3/openFAD Rotator.vst3"
+ctest --test-dir build-vs -C Release --output-on-failure -R openFADRotator_VST3HostSmoke
+```
+
+Result: passed. JUCE's headless VST3 host adapter scanned and instantiated the
+Release bundle, checked its stereo effect buses, all 40 product parameters and
+eight factory programs, exercised parameter gestures/automation, state
+round-trip, offline audio and Dream tail rendering, and verified that two
+instances keep independent state. The adapter exposes additional VST3 host
+parameters (including Bypass, Program, and MIDI CC mappings), so the reported
+parameter count is intentionally larger than the product's 40 audio controls.
+This is a real bundle-loading host smoke test, not a substitute for loading the
+plugin in a full DAW and recording automation or exporting a project.
+
 ### Standalone native WebView
 
 The current Release executable was cold-launched after rebuilding the WebUI and native targets. The embedded page loaded from JUCE BinaryData without localhost, Node, Python, CDN, or remote font access. The checked visual path includes the current WebGL2 thick-shell cabinet, stylized lighting/shadows, speaker model and response curve, independent drum/horn rotors, counter-facing horns, telemetry, and control panels. The native accessibility tree exposed the dedicated `DOPPLER / 多普勒` module; a slider drag changed it from `1.00` to `0.50` and the value was restored to `1.00` before closing the window.
@@ -139,13 +158,17 @@ found no `FAIL` or `ERROR` lines:
 
 The optional Steinberg VST3 Validator test was skipped because no external validator executable path was configured.
 
+The repeatable validation run on August 28, 2026 completed at 14:23:23 local
+time; its pluginval output is under
+`build-vs/validation/pluginval-20260828-142323/`.
+
 ### Repeatable Windows script
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\validate-windows.ps1 -Configuration Release
 ```
 
-Latest direct Release checks passed through manifest validation, WebUI build, native Release build, DSP regression, DSP performance, Processor audio-chain checks, DSP soak checks, artifact/Loader checks, and pluginval completion-marker verification. The script now completes `[1/9]` through `[9/9]`. The Release artifact hash manifest remains:
+Latest direct Release checks passed through manifest validation, WebUI build, native Release build, DSP regression, DSP performance, Processor audio-chain checks, VST3 host smoke loading, DSP soak checks, artifact/Loader checks, and pluginval completion-marker verification. The script now completes `[1/10]` through `[10/10]`. The Release artifact hash manifest remains:
 
 `build-vs/validation/artifact-manifest-Release-20260828-104433.json`
 
