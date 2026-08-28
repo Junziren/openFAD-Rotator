@@ -215,7 +215,7 @@ function AboutModal({
           <div>
             <p className="about-kicker">UNPURE BLOOM · AUDIO INSTRUMENTS</p>
             <h2 id="about-title">openFAD Rotator</h2>
-            <p className="about-sub">GUI·04 — ROTARY SPEAKER / DOPPLER / DREAM</p>
+            <p className="about-sub">ROTARY SPEAKER / DOPPLER / DREAM</p>
           </div>
           <span className="about-stamp">v0.1.0</span>
         </div>
@@ -224,8 +224,7 @@ function AboutModal({
           <div><span>工作流</span><strong>音箱 → 旋转 → 多普勒 → Dream → 输出</strong></div>
           <div><span>发行商</span><strong>Unpure Bloom</strong></div>
           <div><span>格式</span><strong>VST3 · AUv3</strong></div>
-          <div><span>版本</span><strong>0.1.0 · GUI 04</strong></div>
-          <div><span>引擎</span><strong>JUCE · WebGL2 · gl-matrix</strong></div>
+          <div><span>版本</span><strong>0.1.0</strong></div>
           <div><span>交互</span><strong>旋钮拖动 · 滚轮 · Shift 精调 · 双击复位</strong></div>
         </div>
         <div className="about-links" aria-label="相关链接">
@@ -742,7 +741,7 @@ function App() {
     "Coral Drift", "Prism Air", "Still Bloom", "Axis Break",
   ]);
   const [programCount, setProgramCount] = useState(8);
-  const [fileName, setFileName] = useState(nativeAtStartup ? "NATIVE PLUGIN INPUT" : "NO FILE");
+  const [fileName, setFileName] = useState(nativeAtStartup ? "插件输入" : "暂无音频");
   const [error, setError] = useState<string>();
   const [aboutOpen, setAboutOpen] = useState(false);
   const [uiSize, setUiSize] = useState<"small" | "medium" | "large">("medium");
@@ -826,7 +825,7 @@ function App() {
     if (bridge.available) {
       setNativeConnected(true);
       setAudioMode("native");
-      setFileName("NATIVE PLUGIN INPUT");
+      setFileName("插件输入");
       bridge.connect();
     }
 
@@ -981,11 +980,6 @@ function App() {
             </span>
           </button>
         </div>
-        <div className="engine-state">
-          <span><i className="live-dot" />WEBGL2</span>
-          <span>GL-MATRIX</span>
-          <span className={audioMode === "idle" ? "muted" : "active"}>{audioMode.toUpperCase()}</span>
-        </div>
         <div className="system-actions">
           <div className="ui-size-picker" role="group" aria-label="界面尺寸">
             {(["small", "medium", "large"] as const).map((size) => (
@@ -1030,7 +1024,7 @@ function App() {
             <span>SPEAKER MODEL</span>
             <strong>{modelOptions[pluginValues.model] ?? modelOptions[0]}</strong>
           </div>
-          <div className="scene-axis"><span>FIXED DRIVER</span><i /><span>ROTATING HORN</span><i /><span>FIXED BASS</span><i /><span>DERIVED DRUM ×0.46</span><i /></div>
+          <div className="scene-axis"><span>DRIVER</span><i /><span>HORN</span><i /><span>BASS</span><i /><span>DRUM</span><i /></div>
           {error && <div className="render-error" role="alert">{error}</div>}
         </section>
 
@@ -1140,9 +1134,9 @@ function App() {
       </section>
 
       <footer className="status-bar">
-        <span>RAW WEBGL2 / NO THREE.JS</span>
-        <span>APVTS LINK / NATIVE TELEMETRY</span>
-        <span>{pluginValues.bpm.toFixed(1)} BPM / {syncDivisionOptions[pluginValues.syncDivision]}</span>
+        <span>{pluginValues.speedMode === 4
+          ? `${pluginValues.bpm.toFixed(1)} BPM · ${syncDivisionOptions[pluginValues.syncDivision]}`
+          : `${speedModeOptions[pluginValues.speedMode] ?? speedModeOptions[0]} · ${pluginValues.bpm.toFixed(1)} BPM`}</span>
       </footer>
       <TooltipLayer />
       <AboutModal open={aboutOpen} onClose={closeAbout} onOpenExternal={openExternal} />
