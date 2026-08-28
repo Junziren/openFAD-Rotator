@@ -65,6 +65,7 @@ $manifest = [ordered]@{
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
     configuration = $Configuration
     product = "openFAD Rotator"
+    publisher = "Unpure Bloom"
     files = $files
 }
 

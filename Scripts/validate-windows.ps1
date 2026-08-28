@@ -13,12 +13,12 @@ if ([string]::IsNullOrWhiteSpace($BuildDir)) {
 }
 $BuildDir = (Resolve-Path $BuildDir).Path
 
-Write-Host "[1/10] Validate speaker manifest"
+Write-Host "[1/15] Validate speaker manifest"
 Push-Location (Join-Path $root "WebUI")
 try {
     & npm run validate:manifest
     if ($LASTEXITCODE -ne 0) { throw "Speaker manifest validation failed" }
-    Write-Host "[2/10] Build WebUI"
+    Write-Host "[2/15] Build WebUI"
     & npm run build
     if ($LASTEXITCODE -ne 0) { throw "WebUI build failed" }
 }
@@ -26,12 +26,19 @@ finally {
     Pop-Location
 }
 
-Write-Host "[3/10] Build native targets"
+Write-Host "[3/15] Build native targets"
 $standaloneExe = Join-Path $BuildDir "openFADRotator_artefacts\$Configuration\Standalone\openFAD Rotator.exe"
 $dspTestExe = Join-Path $BuildDir "openFADRotator_DSPTests_artefacts\$Configuration\openFADRotator_DSPTests.exe"
+$dspAllocationTestExe = Join-Path $BuildDir "openFADRotator_DSPAllocationTests_artefacts\$Configuration\openFADRotator_DSPAllocationTests.exe"
 $dspSoakTestExe = Join-Path $BuildDir "openFADRotator_DSPSoakTests_artefacts\$Configuration\openFADRotator_DSPSoakTests.exe"
 $processorTestExe = Join-Path $BuildDir "openFADRotator_ProcessorTests_artefacts\$Configuration\openFADRotator_ProcessorTests.exe"
+$processorAllocationTestExe = Join-Path $BuildDir "openFADRotator_ProcessorAllocationTests_artefacts\$Configuration\openFADRotator_ProcessorAllocationTests.exe"
+$processorPerformanceTestExe = Join-Path $BuildDir "openFADRotator_ProcessorPerformanceTests_artefacts\$Configuration\openFADRotator_ProcessorPerformanceTests.exe"
 $hostSmokeTestExe = Join-Path $BuildDir "openFADRotator_VST3HostSmoke_artefacts\$Configuration\openFADRotator_VST3HostSmoke.exe"
+$validationStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$installSmokePackage = Join-Path $BuildDir "validation\install-smoke-$Configuration-$validationStamp"
+$installSmokeZip = "$installSmokePackage.zip"
+$installSmokeRoot = Join-Path $BuildDir "validation\install-root-$Configuration-$validationStamp"
 $runningStandalone = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $standaloneExe }
 if ($runningStandalone) {
     throw "Close the running Standalone before building: $standaloneExe"
@@ -59,13 +66,15 @@ if (-not ($vst3LoaderCandidates | Where-Object { Test-Path -LiteralPath $_ -Path
     throw "Missing VST3 WebView2Loader.dll in expected root or bundle locations: $($vst3LoaderCandidates -join '; ')"
 }
 
+${pluginvalResults} = ""
 if (-not $SkipPluginval) {
-    Write-Host "[4/10] Run pluginval"
+    Write-Host "[4/15] Run pluginval"
     if (-not (Test-Path -LiteralPath $PluginvalPath -PathType Leaf)) {
         throw "pluginval not found at $PluginvalPath; pass -SkipPluginval or provide -PluginvalPath"
     }
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $results = Join-Path $root "build-vs\validation\pluginval-$stamp"
+    $results = Join-Path $BuildDir "validation\pluginval-$stamp"
+    ${pluginvalResults} = $results
     New-Item -ItemType Directory -Force -Path $results | Out-Null
     & $PluginvalPath --validate $vst3 --strictness-level 10 --timeout-ms 120000 --verbose --output-dir $results
     if ($LASTEXITCODE -ne 0) { throw "pluginval failed with exit code $LASTEXITCODE" }
@@ -85,10 +94,10 @@ if (-not $SkipPluginval) {
     Write-Host "pluginval results: $results"
 }
 else {
-    Write-Host "[4/10] pluginval skipped"
+    Write-Host "[4/15] pluginval skipped"
 }
 
-Write-Host "[5/10] Run DSP regression tests"
+Write-Host "[5/15] Run DSP regression tests"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPTests
 if ($LASTEXITCODE -ne 0) { throw "DSP regression test build failed" }
 if (-not (Test-Path -LiteralPath $dspTestExe -PathType Leaf)) {
@@ -97,7 +106,7 @@ if (-not (Test-Path -LiteralPath $dspTestExe -PathType Leaf)) {
 & $dspTestExe
 if ($LASTEXITCODE -ne 0) { throw "DSP regression tests failed with exit code $LASTEXITCODE" }
 
-Write-Host "[6/10] Run DSP performance checks"
+Write-Host "[6/15] Run DSP performance checks"
 $dspPerformanceTestExe = Join-Path $BuildDir "openFADRotator_DSPPerformanceTests_artefacts\$Configuration\openFADRotator_DSPPerformanceTests.exe"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPPerformanceTests
 if ($LASTEXITCODE -ne 0) { throw "DSP performance test build failed" }
@@ -107,7 +116,25 @@ if (-not (Test-Path -LiteralPath $dspPerformanceTestExe -PathType Leaf)) {
 & $dspPerformanceTestExe
 if ($LASTEXITCODE -ne 0) { throw "DSP performance checks failed with exit code $LASTEXITCODE" }
 
-Write-Host "[7/10] Run processor audio-chain checks"
+Write-Host "[7/15] Run Processor performance checks"
+& cmake --build $BuildDir --config $Configuration --target openFADRotator_ProcessorPerformanceTests
+if ($LASTEXITCODE -ne 0) { throw "Processor performance test build failed with exit code $LASTEXITCODE" }
+if (-not (Test-Path -LiteralPath $processorPerformanceTestExe -PathType Leaf)) {
+    throw "Missing Processor performance test executable: $processorPerformanceTestExe"
+}
+& $processorPerformanceTestExe
+if ($LASTEXITCODE -ne 0) { throw "Processor performance checks failed with exit code $LASTEXITCODE" }
+
+Write-Host "[8/15] Run DSP allocation checks"
+& cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPAllocationTests
+if ($LASTEXITCODE -ne 0) { throw "DSP allocation test build failed with exit code $LASTEXITCODE" }
+if (-not (Test-Path -LiteralPath $dspAllocationTestExe -PathType Leaf)) {
+    throw "Missing DSP allocation test executable: $dspAllocationTestExe"
+}
+& $dspAllocationTestExe
+if ($LASTEXITCODE -ne 0) { throw "DSP allocation checks failed with exit code $LASTEXITCODE" }
+
+Write-Host "[9/15] Run processor audio-chain checks"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_ProcessorTests
 if ($LASTEXITCODE -ne 0) { throw "Processor test build failed" }
 if (-not (Test-Path -LiteralPath $processorTestExe -PathType Leaf)) {
@@ -116,7 +143,16 @@ if (-not (Test-Path -LiteralPath $processorTestExe -PathType Leaf)) {
 & $processorTestExe
 if ($LASTEXITCODE -ne 0) { throw "Processor audio-chain checks failed with exit code $LASTEXITCODE" }
 
-Write-Host "[8/10] Run VST3 host smoke checks"
+Write-Host "[10/15] Run Processor allocation checks"
+& cmake --build $BuildDir --config $Configuration --target openFADRotator_ProcessorAllocationTests
+if ($LASTEXITCODE -ne 0) { throw "Processor allocation test build failed with exit code $LASTEXITCODE" }
+if (-not (Test-Path -LiteralPath $processorAllocationTestExe -PathType Leaf)) {
+    throw "Missing Processor allocation test executable: $processorAllocationTestExe"
+}
+& $processorAllocationTestExe
+if ($LASTEXITCODE -ne 0) { throw "Processor allocation checks failed with exit code $LASTEXITCODE" }
+
+Write-Host "[11/15] Run VST3 host smoke checks"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_VST3HostSmoke
 if ($LASTEXITCODE -ne 0) { throw "VST3 host smoke test build failed with exit code $LASTEXITCODE" }
 if (-not (Test-Path -LiteralPath $hostSmokeTestExe -PathType Leaf)) {
@@ -125,7 +161,30 @@ if (-not (Test-Path -LiteralPath $hostSmokeTestExe -PathType Leaf)) {
 & $hostSmokeTestExe $vst3
 if ($LASTEXITCODE -ne 0) { throw "VST3 host smoke checks failed with exit code $LASTEXITCODE" }
 
-Write-Host "[9/10] Run DSP soak checks"
+Write-Host "[12/15] Run package/install smoke checks"
+$packageScript = Join-Path $root "Scripts\package-windows-release.ps1"
+$installerScript = Join-Path $root "Scripts\install-windows-release.ps1"
+& $packageScript -BuildDir $BuildDir -Configuration $Configuration -OutputDirectory $installSmokePackage
+if (-not $?) { throw "Release package build failed" }
+if (-not (Test-Path -LiteralPath $installSmokeZip -PathType Leaf)) {
+    throw "Missing release package for install smoke: $installSmokeZip"
+}
+& $installerScript -Package $installSmokeZip -InstallRoot $installSmokeRoot
+if (-not $?) { throw "Install smoke failed" }
+$installedVst3Binary = Join-Path $installSmokeRoot "VST3\openFAD Rotator.vst3\Contents\x86_64-win\openFAD Rotator.vst3"
+$installedStandalone = Join-Path $installSmokeRoot "Standalone\openFAD Rotator.exe"
+$installSmokeFilesPresent = (Test-Path -LiteralPath $installedVst3Binary -PathType Leaf) -and (Test-Path -LiteralPath $installedStandalone -PathType Leaf)
+if (-not $installSmokeFilesPresent) {
+    throw "Install smoke did not produce the expected VST3 and Standalone files"
+}
+& $installerScript -InstallRoot $installSmokeRoot -Uninstall
+if (-not $?) { throw "Uninstall smoke failed" }
+$installSmokeFilesRemain = (Test-Path -LiteralPath (Join-Path $installSmokeRoot "VST3\openFAD Rotator.vst3")) -or (Test-Path -LiteralPath (Join-Path $installSmokeRoot "Standalone"))
+if ($installSmokeFilesRemain) {
+    throw "Uninstall smoke left product files behind"
+}
+
+Write-Host "[13/15] Run DSP soak checks"
 & cmake --build $BuildDir --config $Configuration --target openFADRotator_DSPSoakTests
 if ($LASTEXITCODE -ne 0) { throw "DSP soak test build failed with exit code $LASTEXITCODE" }
 if (-not (Test-Path -LiteralPath $dspSoakTestExe -PathType Leaf)) {
@@ -134,11 +193,25 @@ if (-not (Test-Path -LiteralPath $dspSoakTestExe -PathType Leaf)) {
 & $dspSoakTestExe
 if ($LASTEXITCODE -ne 0) { throw "DSP soak checks failed with exit code $LASTEXITCODE" }
 
-Write-Host "[10/10] Windows validation complete"
+Write-Host "[14/15] Run release package audit"
+$auditScript = Join-Path $root "Scripts\audit-release.ps1"
+$auditPackageRoot = Join-Path $installSmokePackage "openFAD Rotator"
+& $auditScript `
+    -BuildDir $BuildDir `
+    -Configuration $Configuration `
+    -PackageRoot $auditPackageRoot `
+    -PluginvalResults $pluginvalResults
+if (-not $?) { throw "Release package audit failed" }
+
+Write-Host "[15/15] Windows validation complete"
 Write-Host "VST3: $vst3"
 Write-Host "Standalone: $(Join-Path $standaloneDir 'openFAD Rotator.exe')"
 Write-Host "DSP tests: $dspTestExe"
+Write-Host "DSP allocation: $dspAllocationTestExe"
 Write-Host "DSP performance: $dspPerformanceTestExe"
+Write-Host "Processor performance: $processorPerformanceTestExe"
 Write-Host "DSP soak: $dspSoakTestExe"
 Write-Host "Processor tests: $processorTestExe"
+Write-Host "Processor allocation: $processorAllocationTestExe"
 Write-Host "VST3 host smoke: $hostSmokeTestExe"
+Write-Host "Install smoke package: $installSmokeZip"

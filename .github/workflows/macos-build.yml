@@ -1,0 +1,74 @@
+name: macOS build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: WebUI/package-lock.json
+
+      - name: Fetch pinned JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.12
+          path: JUCE
+          fetch-depth: 1
+
+      - name: Build WebUI
+        working-directory: WebUI
+        run: |
+          npm ci
+          npm run validate:manifest
+          npm run build
+
+      - name: Configure CMake
+        run: >-
+          cmake -S . -B build-macos -G Ninja
+          -DJUCE_PATH="$GITHUB_WORKSPACE/JUCE"
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build AUv3, VST3, Standalone and tests
+        run: >-
+          cmake --build build-macos
+          --target openFADRotator_All
+          openFADRotator_DSPTests
+          openFADRotator_DSPAllocationTests
+          openFADRotator_DSPPerformanceTests
+          openFADRotator_DSPSoakTests
+          openFADRotator_ProcessorTests
+          openFADRotator_ProcessorAllocationTests
+          openFADRotator_ProcessorPerformanceTests
+          openFADRotator_VST3HostSmoke
+
+      - name: Run CTest
+        run: ctest --test-dir build-macos --output-on-failure
+
+      - name: Upload unsigned plugin artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openFAD-Rotator-macos-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            build-macos/openFADRotator_artefacts/Release/VST3/
+            build-macos/openFADRotator_artefacts/Release/AUv3/
+            build-macos/openFADRotator_artefacts/Release/Standalone/

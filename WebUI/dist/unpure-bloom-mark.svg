@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-labelledby="title">
+  <title id="title">Unpure Bloom mark</title>
+  <rect x="1" y="1" width="38" height="38" fill="#0A0A0A" stroke="#0A0A0A" stroke-width="2"/>
+  <path d="M20 5 27 12 20 19 13 12Z" fill="#5B7BFF"/>
+  <path d="M35 20 28 27 21 20 28 13Z" fill="#E34787"/>
+  <path d="M20 35 13 28 20 21 27 28Z" fill="#E8834E"/>
+  <path d="M5 20 12 13 19 20 12 27Z" fill="#668A8E"/>
+  <rect x="17" y="17" width="6" height="6" fill="#FAFAF8" stroke="#0A0A0A" stroke-width="1"/>
+</svg>

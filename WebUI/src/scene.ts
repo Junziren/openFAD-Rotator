@@ -20,6 +20,7 @@ export type SceneControls = {
 export type Telemetry = {
   rotorPhase?: number;
   rotorRate?: number;
+  rotorSignedRate?: number;
   direction?: number;
   audioSequence?: number;
   inputPeak?: number;
@@ -1197,10 +1198,18 @@ export class AcousticLabScene {
       && Number.isFinite(sequence)
       && (this.lastAudioSequence === undefined || sequence !== this.lastAudioSequence);
     if (hasFreshAudio) this.lastAudioSequence = sequence;
-    if (hasFreshAudio && typeof telemetry.rotorRate === "number" && Number.isFinite(telemetry.rotorRate)) {
-      const magnitude = Math.min(20, Math.max(0, telemetry.rotorRate));
-      if (magnitude > 0.0001 || sequence! > 0 || telemetry.playing === true) {
-        this.telemetrySignedRate = magnitude * this.controls.direction;
+    if (hasFreshAudio) {
+      const signedRate = typeof telemetry.rotorSignedRate === "number"
+        && Number.isFinite(telemetry.rotorSignedRate)
+        ? Math.min(20, Math.max(-20, telemetry.rotorSignedRate))
+        : undefined;
+      const magnitude = typeof telemetry.rotorRate === "number" && Number.isFinite(telemetry.rotorRate)
+        ? Math.min(20, Math.max(0, telemetry.rotorRate))
+        : undefined;
+      const targetRate = signedRate ?? (magnitude === undefined ? undefined : magnitude * this.controls.direction);
+      if (targetRate !== undefined
+          && (Math.abs(targetRate) > 0.0001 || sequence! > 0 || telemetry.playing === true)) {
+        this.telemetrySignedRate = targetRate;
         this.telemetryRateUpdatedAt = performance.now();
       }
     }

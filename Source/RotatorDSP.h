@@ -4,6 +4,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -19,6 +20,9 @@ public:
         float lowGain = 1.18f;
         float midGain = 1.22f;
         float highGain = 0.66f;
+        float lowMidGain = 1.0f;
+        float presenceGain = 1.0f;
+        float airGain = 1.0f;
     };
 
     using SpeakerProfiles = std::array<SpeakerProfile, 8>;
@@ -27,6 +31,7 @@ public:
     {
         float rotorPhase = 0.0f;
         float rotorRate = 0.0f;
+        float rotorSignedRate = 0.0f;
         float inputPeak = 0.0f;
         float outputPeak = 0.0f;
         std::array<float, 3> bandEnergy { 0.0f, 0.0f, 0.0f };
@@ -99,6 +104,7 @@ public:
 
             snapshot.rotorPhase = telemetryRotorPhase.load (std::memory_order_relaxed);
             snapshot.rotorRate = telemetryRotorRate.load (std::memory_order_relaxed);
+            snapshot.rotorSignedRate = telemetryRotorSignedRate.load (std::memory_order_relaxed);
             snapshot.inputPeak = telemetryInputPeak.load (std::memory_order_relaxed);
             snapshot.outputPeak = telemetryOutputPeak.load (std::memory_order_relaxed);
             snapshot.bandEnergy = {
@@ -138,6 +144,9 @@ private:
         float lowGain = 1.18f;
         float midGain = 1.22f;
         float highGain = 0.66f;
+        float lowMidGain = 1.0f;
+        float presenceGain = 1.0f;
+        float airGain = 1.0f;
         float modelGain = 1.0f;
         float drive = 0.0f;
     };
@@ -146,12 +155,16 @@ private:
     {
         float low = 0.0f;
         float high = 0.0f;
+        float lowMid = 0.0f;
+        float presence = 0.0f;
         float cabinet = 0.0f;
         float dreamLow = 0.0f;
         float dreamHigh = 0.0f;
         float reflection = 0.0f;
         float hrtfShadow = 0.0f;
         float hrtfCrossfeed = 0.0f;
+        std::array<float, 8> hrtfHistory{};
+        size_t hrtfWrite = 0;
         std::array<float, 8> diffusion{};
     };
 
@@ -168,6 +181,10 @@ private:
     float processBinauralDelay (float input,
                                 std::vector<float>& delay,
                                 float delaySamples) noexcept;
+    float processHrtfFilter (float input,
+                             ChannelState& state,
+                             float farRatio,
+                             float lateral) noexcept;
     float processDream (float input,
                         ChannelState& state,
                         int channel,
@@ -192,6 +209,7 @@ private:
     std::atomic<float> telemetryRotorPhase { 0.0f };
     std::atomic<uint32_t> telemetrySequence { 0u };
     std::atomic<float> telemetryRotorRate { 0.0f };
+    std::atomic<float> telemetryRotorSignedRate { 0.0f };
     std::atomic<float> telemetryInputPeak { 0.0f };
     std::atomic<float> telemetryOutputPeak { 0.0f };
     std::atomic<float> telemetryBand0 { 0.0f };
@@ -223,6 +241,9 @@ private:
     juce::SmoothedValue<float> speakerLowGainSmoother;
     juce::SmoothedValue<float> speakerMidGainSmoother;
     juce::SmoothedValue<float> speakerHighGainSmoother;
+    juce::SmoothedValue<float> speakerLowMidGainSmoother;
+    juce::SmoothedValue<float> speakerPresenceGainSmoother;
+    juce::SmoothedValue<float> speakerAirGainSmoother;
     juce::SmoothedValue<float> speakerModelGainSmoother;
     juce::SmoothedValue<float> speakerDriveSmoother;
     juce::SmoothedValue<float> binauralAzimuthSmoother;

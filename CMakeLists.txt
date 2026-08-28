@@ -44,7 +44,7 @@ else()
 endif()
 
 juce_add_plugin(openFADRotator
-    COMPANY_NAME "openFAD"
+    COMPANY_NAME "Unpure Bloom"
     BUNDLE_ID "org.openfad.rotator"
     PLUGIN_MANUFACTURER_CODE OFad
     PLUGIN_CODE ORot
@@ -173,6 +173,28 @@ if (BUILD_TESTING)
 
     add_test(NAME openFADRotator_DSPPerformanceTests COMMAND openFADRotator_DSPPerformanceTests)
 
+    juce_add_console_app(openFADRotator_DSPAllocationTests
+        PRODUCT_NAME "openFAD Rotator DSP Allocation Tests"
+        COMPANY_NAME "openFAD"
+        VERSION ${PROJECT_VERSION}
+    )
+
+    target_sources(openFADRotator_DSPAllocationTests PRIVATE
+        Tests/RotatorDSPAllocationTests.cpp
+        Source/RotatorDSP.cpp
+    )
+
+    target_link_libraries(openFADRotator_DSPAllocationTests PRIVATE
+        juce::juce_audio_basics
+        juce::juce_dsp
+    )
+
+    if (MSVC)
+        target_compile_options(openFADRotator_DSPAllocationTests PRIVATE /utf-8)
+    endif()
+
+    add_test(NAME openFADRotator_DSPAllocationTests COMMAND openFADRotator_DSPAllocationTests)
+
     juce_add_console_app(openFADRotator_DSPSoakTests
         PRODUCT_NAME "openFAD Rotator DSP Soak Tests"
         COMPANY_NAME "openFAD"
@@ -237,6 +259,90 @@ if (BUILD_TESTING)
 
     add_test(NAME openFADRotator_ProcessorTests COMMAND openFADRotator_ProcessorTests)
 
+    juce_add_console_app(openFADRotator_ProcessorAllocationTests
+        PRODUCT_NAME "openFAD Rotator Processor Allocation Tests"
+        COMPANY_NAME "openFAD"
+        VERSION ${PROJECT_VERSION}
+    )
+
+    target_sources(openFADRotator_ProcessorAllocationTests PRIVATE
+        Tests/ProcessorAllocationTests.cpp
+        Source/Parameters.cpp
+        Source/RotatorDSP.cpp
+        Source/PluginProcessor.cpp
+        Source/PluginEditor.cpp
+    )
+
+    target_link_libraries(openFADRotator_ProcessorAllocationTests PRIVATE
+        OpenFADRotatorWebData
+        juce::juce_audio_utils
+        juce::juce_dsp
+        juce::juce_gui_extra
+    )
+
+    if (TARGET juce::juce_webview2)
+        target_link_libraries(openFADRotator_ProcessorAllocationTests PRIVATE juce::juce_webview2)
+    endif()
+
+    target_compile_definitions(openFADRotator_ProcessorAllocationTests PRIVATE
+        JUCE_WEB_BROWSER=1
+        JUCE_VST3_CAN_REPLACE_VST2=0
+    )
+
+    if (WIN32)
+        target_compile_definitions(openFADRotator_ProcessorAllocationTests PRIVATE JUCE_USE_WIN_WEBVIEW2=1)
+    else()
+        target_compile_definitions(openFADRotator_ProcessorAllocationTests PRIVATE JUCE_USE_WIN_WEBVIEW2=0)
+    endif()
+
+    if (MSVC)
+        target_compile_options(openFADRotator_ProcessorAllocationTests PRIVATE /utf-8)
+    endif()
+
+    add_test(NAME openFADRotator_ProcessorAllocationTests COMMAND openFADRotator_ProcessorAllocationTests)
+
+    juce_add_console_app(openFADRotator_ProcessorPerformanceTests
+        PRODUCT_NAME "openFAD Rotator Processor Performance Tests"
+        COMPANY_NAME "openFAD"
+        VERSION ${PROJECT_VERSION}
+    )
+
+    target_sources(openFADRotator_ProcessorPerformanceTests PRIVATE
+        Tests/ProcessorPerformanceTests.cpp
+        Source/Parameters.cpp
+        Source/RotatorDSP.cpp
+        Source/PluginProcessor.cpp
+        Source/PluginEditor.cpp
+    )
+
+    target_link_libraries(openFADRotator_ProcessorPerformanceTests PRIVATE
+        OpenFADRotatorWebData
+        juce::juce_audio_utils
+        juce::juce_dsp
+        juce::juce_gui_extra
+    )
+
+    if (TARGET juce::juce_webview2)
+        target_link_libraries(openFADRotator_ProcessorPerformanceTests PRIVATE juce::juce_webview2)
+    endif()
+
+    target_compile_definitions(openFADRotator_ProcessorPerformanceTests PRIVATE
+        JUCE_WEB_BROWSER=1
+        JUCE_VST3_CAN_REPLACE_VST2=0
+    )
+
+    if (WIN32)
+        target_compile_definitions(openFADRotator_ProcessorPerformanceTests PRIVATE JUCE_USE_WIN_WEBVIEW2=1)
+    else()
+        target_compile_definitions(openFADRotator_ProcessorPerformanceTests PRIVATE JUCE_USE_WIN_WEBVIEW2=0)
+    endif()
+
+    if (MSVC)
+        target_compile_options(openFADRotator_ProcessorPerformanceTests PRIVATE /utf-8)
+    endif()
+
+    add_test(NAME openFADRotator_ProcessorPerformanceTests COMMAND openFADRotator_ProcessorPerformanceTests)
+
     juce_add_console_app(openFADRotator_VST3HostSmoke
         PRODUCT_NAME "openFAD Rotator VST3 Host Smoke"
         COMPANY_NAME "openFAD"
@@ -249,6 +355,7 @@ if (BUILD_TESTING)
 
     target_link_libraries(openFADRotator_VST3HostSmoke PRIVATE
         juce::juce_audio_processors_headless
+        juce::juce_audio_formats
     )
 
     target_compile_definitions(openFADRotator_VST3HostSmoke PRIVATE

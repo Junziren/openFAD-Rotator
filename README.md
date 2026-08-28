@@ -12,6 +12,9 @@
 - Dream Freeze ramps its input injection and feedback loop over the same 24 ms window, including MIDI-held freeze transitions.
 - MIDI note hold/release control for transient Dream Freeze.
 - Offline React/WebGL2 WebUI using `gl-matrix`, bundled through JUCE BinaryData and the WebView2/WKWebView resource provider.
+- Unpure Bloom family UI with the shared paper/chrome palette, local Bloom mark,
+  Fuse-style rotary controls, cursor-following parameter explanations, and
+  responsive S/M/L editor sizing.
 - Eight complete factory programs represented by the native program bank and `Presets/factory.json`.
 - Native preset save/load files under the user application data directory.
 - Native parameter listeners that keep WebUI state synchronized with host automation and project restore.
@@ -38,7 +41,7 @@ cmake -S . -B build-vs -G "Visual Studio 18 2026" -A x64 `
 cmake --build build-vs --config Release --target openFADRotator_All
 ```
 
-For a repeatable Windows smoke build, manifest check, artifact check, pluginval run, DSP regression, Release performance check, Processor host-contract check, VST3 bundle host smoke, and long-run DSP soak:
+For a repeatable Windows smoke build, manifest check, artifact check, pluginval run, DSP regression, DSP and full-Processor Release performance, DSP/Processor callback allocation checks, Processor host-contract check, VST3 bundle host smoke, package/install smoke, release-package audit, and long-run DSP soak:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\validate-windows.ps1 -Configuration Release
@@ -46,17 +49,42 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\validate-windows.p
 
 Use `-SkipPluginval` when only the local build and resource checks are needed.
 
-After validation, create an auditable offline Windows bundle with:
+The release audit can also be run independently against an existing package
+staging directory. It checks the offline WebUI boundary, package metadata,
+artifact hashes, third-party license hashes, and an optional pluginval log:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\package-windows-release.ps1 -Configuration Release
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\audit-release.ps1 `
+  -BuildDir .\build-vs `
+  -Configuration Release `
+  -PackageRoot .\build-vs\validation\install-smoke-Release-<stamp> `
+  -PluginvalResults .\build-vs\validation\pluginval-<stamp>
 ```
 
-The bundle still requires the Microsoft WebView2 Evergreen Runtime on the target machine.
+After validation, create the offline Windows release bundle with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\package-windows-offline-release.ps1 -Configuration Release
+```
+
+The generated ZIP includes the Microsoft WebView2 Evergreen Offline x64
+installer and the Microsoft VC++ x64 Redistributable, so a disconnected Windows
+machine can install the shared runtimes before the product files.
+
+Extract the versioned directory and run `Install-openFAD-Rotator.cmd` as an
+administrator. It verifies dependency hashes, installs the bundled runtimes,
+copies the VST3 and Standalone files, creates the factory preset directory, and
+registers `Unpure Bloom / openFAD Rotator` in Windows Apps & Features. Use
+`Uninstall-openFAD-Rotator.cmd` to remove the product while keeping shared
+runtimes and user presets.
+
+Apple build configuration lives in `.github/workflows/macos-build.yml`; it is
+configured for JUCE 8.0.12 VST3/AUv3/Standalone builds and CTest, but still
+requires a hosted macOS run and Logic Pro/device validation.
 
 On Windows, the build requires the WebView2 SDK through JUCE and copies `Resources/WebView2/WebView2Loader.dll` beside the generated Standalone and VST3 binaries. The target machine also needs the Microsoft WebView2 Evergreen Runtime; the loader DLL and the runtime are separate dependencies.
 
-The generated Release VST3 is under `build-vs/openFADRotator_artefacts/Release/VST3/`. The Standalone executable is under the sibling `Standalone` directory.
+The generated Release VST3 is under `build-vs/openFADRotator_artefacts/Release/VST3/`. The Standalone executable is under the sibling `Standalone` directory. The offline release ZIP and its SHA-256 sidecar are written to `build-vs/offline-release/`.
 
 ## Resource and runtime boundary
 
@@ -65,6 +93,7 @@ Release builds do not use localhost, npm, Python, a CDN, remote fonts, or files 
 ## Product identifiers
 
 - Product: `openFAD Rotator`
+- Publisher: `Unpure Bloom`
 - Bundle ID: `org.openfad.rotator`
 - Manufacturer code: `OFad`
 - Plugin code: `ORot`

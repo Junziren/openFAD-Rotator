@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
   font-family: "Noto Sans SC", "Source Sans 3", "Segoe UI", sans-serif;
-  --paper: #dedce8;
-  --paper-bright: #f1ece7;
-  --paper-shadow: #bdb9cc;
-  --ink: #211d31;
-  --ink-soft: #625d73;
-  --indigo: #746da2;
-  --pine: #668a8e;
-  --brass: #d19e6b;
-  --rust: #a96b85;
-  --screen: #0e0c17;
+  --paper: #e8e5db;
+  --paper-bright: #f6f4ec;
+  --paper-shadow: #d7d3c5;
+  --ink: #1c1b14;
+  --ink-soft: #4c4a40;
+  --indigo: #002fa7;
+  --pine: #50604e;
+  --brass: #8c6f3e;
+  --rust: #ac4b2c;
+  --screen: #1c1b14;
   background: var(--paper-shadow);
   color: var(--ink);
   font-synthesis: none;
@@ -95,7 +95,6 @@ button { color: inherit; }
 .icon-button:hover, .icon-button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 1px; }
 .icon-button:active { transform: translate(2px, 2px); box-shadow: none; }
 .icon-button.selected { background: var(--indigo); color: var(--paper-bright); box-shadow: 0 0 12px rgba(98, 103, 147, 0.34); }
-.compact-control-toggle { display: none; }
 
 .workspace { min-height: 0; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 314px; }
 .visual-surface {
@@ -260,8 +259,7 @@ button { color: inherit; }
 .rack-path-label strong { color: var(--ink); font-weight: 500; white-space: nowrap; }
 .output-path-label { margin-top: 2px; }
 
-/* Keep every APVTS control visible while using a stable two-column rack.
-   Compact editor sizes fall back to one column below. */
+/* Keep every APVTS control visible in a stable two-column rack. */
 .rack-group {
   padding: 0;
   overflow: hidden;
@@ -462,11 +460,11 @@ button { color: inherit; }
   .transport-buttons button { height: 32px; }
   .meter-bank { gap: 4px; margin-top: 7px; }
   .rack-group > .module-title { height: 38px; padding: 7px 10px; }
-  .rack-group > .module-content { grid-template-columns: 1fr; gap: 8px; padding: 0 10px 9px; }
+  .rack-group > .module-content { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 10px 9px; }
   .rack-group > .module-content > .control-select,
   .rack-group > .module-content > .option-control,
   .rack-group > .module-content > .direction-control,
-  .rack-group > .module-content > .speaker-curve { grid-column: auto; }
+  .rack-group > .module-content > .speaker-curve { grid-column: 1 / -1; }
   .control-select { grid-template-columns: 1fr minmax(0, 130px); gap: 7px; }
   .direction-control button { width: 44px; }
 }
@@ -501,35 +499,710 @@ button { color: inherit; }
   .system-bar { grid-template-columns: minmax(0, 1fr) auto; }
   .engine-state, .scene-index, .scene-axis { display: none; }
   .workspace {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--screen);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(220px, 40vh) minmax(0, 1fr);
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+    background: var(--paper-shadow);
   }
   .visual-surface {
-    width: 100vw;
-    flex: 0 0 100vw;
-    height: min(620px, calc(100vh - 64px));
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 220px;
     border-right: 0;
+    border-bottom: 1px solid var(--ink);
   }
-  .compact-control-toggle { display: grid; }
   .control-rack {
     display: flex;
-    position: absolute;
-    inset: 0 0 0 auto;
-    z-index: 5;
-    width: min(100vw, 360px);
-    max-width: 100%;
-    border-left: 1px solid var(--ink);
-    box-shadow: -10px 0 0 rgba(33, 29, 49, 0.18);
-    transform: translateX(100%);
-    transition: transform 180ms ease;
+    position: static;
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    border-left: 0;
+    box-shadow: none;
+    transform: none;
+    transition: none;
   }
-  .app-shell.compact-controls-open .control-rack { transform: translateX(0); }
+  .rack-group > .module-content { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .rack-group > .module-content > .control-select,
+  .rack-group > .module-content > .option-control,
+  .rack-group > .module-content > .direction-control,
+  .rack-group > .module-content > .speaker-curve { grid-column: 1 / -1; }
   .status-bar { justify-content: flex-start; }
   .status-bar span:not(:first-child) { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Unpure Bloom family layer
+
+   The paper instrument chassis stays restrained; cyan/magenta/orange are
+   reserved for the small Bloom family mark and direct control feedback.
+--------------------------------------------------------------------------- */
+:root {
+  --bloom-cyan: #00a9c7;
+  --bloom-magenta: #e34787;
+  --bloom-orange: #e8834e;
+  --bloom-pine: #668a8e;
+}
+
+.brand-lockup {
+  min-width: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.brand-lockup:hover .bloom-mark,
+.brand-lockup:focus-visible .bloom-mark {
+  transform: rotate(-4deg) scale(1.05);
+  box-shadow: 2px 2px 0 var(--bloom-orange), 0 0 14px rgba(0, 169, 199, .28);
+}
+.brand-lockup:focus-visible { outline: 1px solid var(--indigo); outline-offset: 4px; }
+.brand-lockup > span:last-child { min-width: 0; }
+.brand-lockup strong { display: block; font-size: 13px; line-height: 1.05; }
+.brand-lockup small {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font: 8px "JetBrains Mono", monospace;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.bloom-mark {
+  position: relative;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  display: block;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--bloom-orange), 0 0 10px rgba(0, 169, 199, .18);
+  transform: rotate(-4deg);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.bloom-mark.small { width: 24px; height: 24px; flex-basis: 24px; }
+.bloom-petal {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  display: block;
+  transform: rotate(45deg);
+}
+.bloom-mark.small .bloom-petal { width: 7px; height: 7px; }
+.petal-cyan { top: 4px; left: 10px; background: var(--bloom-cyan); }
+.petal-magenta { top: 10px; right: 4px; background: var(--bloom-magenta); }
+.petal-orange { bottom: 4px; left: 10px; background: var(--bloom-orange); }
+.petal-pine { top: 10px; left: 4px; background: var(--bloom-pine); }
+.bloom-core {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  top: 11px;
+  left: 11px;
+  background: var(--paper-bright);
+  border: 1px solid var(--ink);
+}
+.bloom-mark.small .bloom-core { top: 9px; left: 9px; width: 5px; height: 5px; }
+
+.ui-size-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 3px;
+  border-right: 1px solid var(--paper-shadow);
+}
+.ui-size-picker button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--paper-shadow);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font: 8px "JetBrains Mono", monospace;
+  font-weight: 700;
+}
+.ui-size-picker button:hover,
+.ui-size-picker button:focus-visible,
+.ui-size-picker button.selected {
+  border-color: var(--indigo);
+  background: var(--indigo);
+  color: var(--paper-bright);
+  outline: none;
+}
+
+.hover-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(320px, calc(100vw - 18px));
+  padding: 8px 10px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper-bright);
+  box-shadow: 3px 3px 0 rgba(33, 29, 49, .28);
+  pointer-events: none;
+  transform: translate(14px, 14px);
+  opacity: 0;
+  transition: opacity .08s ease;
+}
+.hover-tooltip.is-visible { opacity: 1; }
+.hover-tooltip strong {
+  color: #fff;
+  font: 9px "JetBrains Mono", monospace;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+.hover-tooltip span {
+  color: rgba(241, 236, 231, .78);
+  font: 10px "Noto Sans SC", "Segoe UI", sans-serif;
+  line-height: 1.35;
+}
+
+.control-slider,
+.control-select,
+.option-control,
+.toggle-control,
+.direction-control { transition: color .1s ease, transform .1s ease; }
+.control-slider:hover,
+.control-select:hover,
+.option-control:hover,
+.toggle-control:hover,
+.direction-control:hover { color: var(--ink); }
+.control-slider.is-gesturing { color: var(--indigo); }
+.control-slider.is-gesturing strong { color: var(--indigo); text-shadow: 0 0 8px rgba(116, 109, 162, .35); }
+.control-slider input:active::-webkit-slider-thumb { transform: scale(1.08); }
+.control-slider input:active::-moz-range-thumb { transform: scale(1.08); }
+.control-slider input::-webkit-slider-thumb { transition: transform .08s ease, background .1s ease, box-shadow .1s ease; }
+.control-slider input::-moz-range-thumb { transition: transform .08s ease, background .1s ease, box-shadow .1s ease; }
+.control-slider:hover input::-webkit-slider-thumb,
+.control-slider.is-gesturing input::-webkit-slider-thumb { background: var(--bloom-cyan); box-shadow: 2px 2px 0 #888698, 0 0 9px rgba(0, 169, 199, .34); }
+.control-slider:hover input::-moz-range-thumb,
+.control-slider.is-gesturing input::-moz-range-thumb { background: var(--bloom-cyan); box-shadow: 2px 2px 0 #888698, 0 0 9px rgba(0, 169, 199, .34); }
+.control-select select:hover,
+.control-select select:focus-visible { border-color: var(--bloom-cyan); }
+.option-buttons button:active,
+.direction-control button:active,
+.program-action:active,
+.transport-buttons button:active { transform: translate(1px, 1px); }
+.toggle-control input { cursor: pointer; }
+
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(33, 29, 49, .48);
+  animation: about-fade-in .14s ease both;
+}
+.about-panel {
+  position: relative;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(700px, calc(100vh - 32px));
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--ink);
+  border-left: 4px solid var(--bloom-magenta);
+  background: var(--paper-bright);
+  color: var(--ink);
+  box-shadow: 6px 6px 0 rgba(33, 29, 49, .34);
+  animation: about-panel-in .18s cubic-bezier(.2, 0, .38, .9) both;
+}
+.about-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.about-close:hover,
+.about-close:focus-visible { border-color: var(--bloom-magenta); background: var(--bloom-magenta); color: #fff; outline: none; }
+.about-brand-row { display: flex; align-items: flex-start; gap: 12px; padding-right: 38px; }
+.about-kicker { margin: 0; color: var(--bloom-magenta); font: 8px "JetBrains Mono", monospace; letter-spacing: .16em; }
+.about-brand-row h2 { margin: 7px 0 4px; font-size: 22px; font-weight: 600; line-height: 1.1; }
+.about-sub { margin: 0; color: var(--ink-soft); font: 8px "JetBrains Mono", monospace; letter-spacing: .08em; }
+.about-summary { max-width: 54ch; margin: 22px 0 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+.about-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; margin-top: 20px; border-top: 1px solid var(--paper-shadow); }
+.about-grid > div { min-width: 0; display: grid; gap: 5px; padding: 11px 0; border-bottom: 1px solid var(--paper-shadow); }
+.about-grid span { color: var(--bloom-magenta); font: 8px "JetBrains Mono", monospace; letter-spacing: .12em; }
+.about-grid strong { min-width: 0; overflow: hidden; color: var(--ink); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.about-footer { display: flex; align-items: flex-start; gap: 8px; margin-top: 20px; padding-top: 13px; border-top: 1px solid var(--paper-shadow); color: var(--ink-soft); font: 9px "JetBrains Mono", monospace; line-height: 1.45; }
+.about-footer svg { flex: 0 0 auto; color: var(--bloom-cyan); margin-top: 1px; }
+@keyframes about-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes about-panel-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+body[data-ui-size="small"] .app-shell { grid-template-rows: 40px minmax(0, 1fr) 22px; }
+body[data-ui-size="small"] .system-bar { gap: 8px; padding-inline: 8px; }
+body[data-ui-size="small"] .brand-lockup { gap: 7px; }
+body[data-ui-size="small"] .brand-lockup strong { font-size: 11px; }
+body[data-ui-size="small"] .brand-lockup small { font-size: 7px; }
+body[data-ui-size="small"] .bloom-mark { width: 24px; height: 24px; flex-basis: 24px; }
+body[data-ui-size="small"] .engine-state span { padding-inline: 5px; font-size: 8px; }
+body[data-ui-size="small"] .system-actions { gap: 3px; }
+body[data-ui-size="small"] .ui-size-picker button { width: 18px; height: 18px; }
+body[data-ui-size="small"] .rack-group > .module-content { gap: 7px 6px; padding-inline: 9px; }
+body[data-ui-size="small"] .control-slider,
+body[data-ui-size="small"] .control-select,
+body[data-ui-size="small"] .toggle-control,
+body[data-ui-size="small"] .direction-control { font-size: 8px; }
+
+body[data-ui-size="large"] .app-shell { grid-template-rows: 50px minmax(0, 1fr) 26px; }
+body[data-ui-size="large"] .system-bar { padding-inline: 14px; }
+body[data-ui-size="large"] .brand-lockup strong { font-size: 15px; }
+body[data-ui-size="large"] .bloom-mark { width: 34px; height: 34px; flex-basis: 34px; }
+body[data-ui-size="large"] .rack-group > .module-content { gap: 15px 13px; padding: 0 16px 15px; }
+body[data-ui-size="large"] .control-slider,
+body[data-ui-size="large"] .control-select,
+body[data-ui-size="large"] .toggle-control,
+body[data-ui-size="large"] .direction-control { font-size: 10px; }
+
+@media (max-width: 620px) {
+  .brand-lockup small { display: none; }
+  .brand-lockup strong { font-size: 11px; }
+  .bloom-mark { width: 24px; height: 24px; flex-basis: 24px; }
+  .system-actions .ui-size-picker { display: none; }
+  .about-overlay { padding: 12px; }
+  .about-panel { width: calc(100vw - 24px); max-height: calc(100vh - 24px); padding: 18px; }
+  .about-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-lockup:hover .bloom-mark,
+  .brand-lockup:focus-visible .bloom-mark { transform: rotate(-4deg); }
+  .about-overlay, .about-panel { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Unpure Bloom family refinement
+
+   Rotator keeps the paper instrument chassis used by Fuse, with the Bloom
+   mark providing the only multicolor identity cue. Numeric parameters use
+   physical rotary controls so pointer, wheel, keyboard and host automation
+   share one gesture model.
+--------------------------------------------------------------------------- */
+:root {
+  --accent: #002fa7;
+  --accent-bright: #5b7bff;
+  --accent-on: #ffffff;
+  --bloom-cyan: #00a9c7;
+  --bloom-magenta: #e34787;
+  --bloom-orange: #e8834e;
+  --bloom-pine: #668a8e;
+  --rule: #b9b6aa;
+}
+
+.system-bar {
+  background: var(--paper-bright);
+  border-bottom-color: var(--rule);
+  box-shadow: 0 3px 0 var(--paper-shadow);
+}
+
+.brand-lockup {
+  gap: 10px;
+}
+.brand-lockup:hover .bloom-mark,
+.brand-lockup:focus-visible .bloom-mark {
+  transform: translateY(-1px);
+  box-shadow: 2px 3px 0 var(--bloom-orange), 0 0 0 1px var(--bloom-cyan);
+}
+.bloom-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: block;
+  object-fit: contain;
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--bloom-orange);
+  transform: none;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+.bloom-mark.small {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+.brand-lockup small {
+  letter-spacing: 0;
+}
+
+.engine-state span {
+  border-left-color: var(--rule);
+}
+.engine-state span:last-child {
+  border-right-color: var(--rule);
+}
+.engine-state .active {
+  color: var(--pine);
+  background: #e4ebe2;
+}
+.live-dot {
+  background: var(--pine);
+  box-shadow: none;
+}
+
+.icon-button,
+.program-action,
+.transport-buttons button,
+.option-buttons button,
+.direction-control button {
+  box-shadow: 2px 2px 0 var(--paper-shadow);
+}
+.icon-button.selected,
+.transport-buttons button.selected {
+  background: var(--accent);
+  color: var(--accent-on);
+  box-shadow: 2px 2px 0 var(--paper-shadow);
+}
+.option-buttons button.selected,
+.direction-control button.selected {
+  background: var(--accent);
+  color: var(--accent-on);
+  box-shadow: 2px 2px 0 var(--paper-shadow);
+}
+.icon-button:hover,
+.icon-button:focus-visible,
+.program-action:hover,
+.program-action:focus-visible,
+.transport-buttons button:hover,
+.transport-buttons button:focus-visible,
+.option-buttons button:hover,
+.option-buttons button:focus-visible,
+.direction-control button:focus-visible {
+  outline-color: var(--accent);
+}
+
+.hover-tooltip {
+  min-width: 210px;
+  padding: 9px 11px;
+  border: 1px solid var(--ink);
+  border-left: 3px solid var(--bloom-cyan);
+  background: var(--ink);
+  color: var(--paper-bright);
+  box-shadow: 3px 3px 0 rgba(28, 27, 20, .22);
+  transition: opacity 80ms ease;
+}
+.hover-tooltip strong {
+  color: var(--accent-bright);
+  letter-spacing: .06em;
+}
+.hover-tooltip span {
+  color: var(--paper-bright);
+}
+
+/* Fuse-style physical rotary control. The outer component remains named
+   control-slider so existing parameter layout and bridge wiring stay intact. */
+.control-slider.knob-control {
+  position: relative;
+  min-width: 0;
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: start;
+  gap: 3px;
+  color: var(--ink-soft);
+  text-align: center;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+.knob-dial {
+  --arc-color: var(--ink);
+  --angle: -135deg;
+  --sweep: 0deg;
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper-bright);
+  box-shadow: 2px 2px 0 var(--paper-shadow);
+  transition: transform 100ms ease, border-color 100ms ease, box-shadow 100ms ease;
+}
+.knob-dial::before,
+.knob-dial::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+}
+.knob-dial::before {
+  background: conic-gradient(from -135deg, var(--paper-shadow) 0deg 270deg, transparent 270deg 360deg);
+}
+.knob-dial::after {
+  background: conic-gradient(from -135deg, var(--arc-color) 0deg var(--sweep), transparent var(--sweep) 360deg);
+}
+.knob-needle {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  z-index: 2;
+  width: 2px;
+  height: 38%;
+  background: var(--arc-color);
+  transform: translateX(-50%) rotate(var(--angle));
+  transform-origin: 50% 100%;
+}
+.knob-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper-bright);
+  transform: translate(-50%, -50%);
+}
+.knob-label {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font: 8px "JetBrains Mono", monospace;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.knob-value {
+  color: var(--ink);
+  font: 9px "JetBrains Mono", monospace;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.knob-control:hover .knob-dial,
+.knob-control:focus-visible .knob-dial {
+  --arc-color: var(--bloom-cyan);
+  border-color: var(--bloom-cyan);
+  box-shadow: 2px 2px 0 var(--paper-shadow), 0 0 0 1px rgba(0, 169, 199, .18);
+}
+.knob-control:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+.knob-control.is-gesturing .knob-dial {
+  --arc-color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.06);
+  box-shadow: 2px 2px 0 var(--paper-shadow), 0 0 0 1px rgba(0, 47, 167, .2);
+}
+.knob-control.is-gesturing .knob-value {
+  color: var(--accent);
+}
+.knob-control.is-disabled {
+  opacity: .36;
+  cursor: default;
+  pointer-events: none;
+}
+
+.control-select select:hover,
+.control-select select:focus-visible {
+  border-color: var(--accent);
+}
+.toggle-control input {
+  accent-color: var(--accent);
+}
+
+.about-overlay {
+  background: rgba(28, 27, 20, .38);
+}
+.about-panel {
+  width: min(620px, calc(100vw - 32px));
+  padding: 25px 26px 23px;
+  border: 1px solid var(--ink);
+  border-left: 4px solid var(--bloom-magenta);
+  background: var(--paper-bright);
+  box-shadow: 6px 6px 0 rgba(28, 27, 20, .25);
+}
+.about-brand-row {
+  position: relative;
+  align-items: flex-start;
+  gap: 13px;
+  padding-right: 56px;
+}
+.about-brand-row .bloom-mark {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+}
+.about-kicker {
+  color: var(--bloom-magenta);
+  letter-spacing: .08em;
+}
+.about-brand-row h2 {
+  margin-top: 6px;
+  font-size: 24px;
+}
+.about-sub {
+  letter-spacing: .04em;
+}
+.about-stamp {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font: 8px "JetBrains Mono", monospace;
+  letter-spacing: .12em;
+}
+.about-summary {
+  max-width: 54ch;
+  margin-top: 20px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.about-grid {
+  gap: 0 22px;
+  margin-top: 20px;
+  border-top-color: var(--paper-shadow);
+}
+.about-grid > div {
+  padding: 12px 0;
+  border-bottom-color: var(--paper-shadow);
+}
+.about-grid span {
+  color: var(--accent);
+  letter-spacing: .08em;
+}
+.about-grid strong {
+  overflow: visible;
+  white-space: normal;
+  line-height: 1.35;
+}
+.about-links {
+  display: grid;
+  gap: 0;
+  margin-top: 18px;
+  border-top: 1px solid var(--paper-shadow);
+}
+.about-link {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(145px, .85fr) minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--paper-shadow);
+  color: inherit;
+  text-decoration: none;
+}
+.about-link span {
+  color: var(--accent);
+  font: 8px "JetBrains Mono", monospace;
+  letter-spacing: .08em;
+}
+.about-link strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font: 10px "JetBrains Mono", monospace;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.about-link svg {
+  color: var(--bloom-cyan);
+  transition: transform 100ms ease, color 100ms ease;
+}
+.about-link:hover,
+.about-link:focus-visible {
+  outline: none;
+  background: rgba(0, 169, 199, .08);
+}
+.about-link:hover strong,
+.about-link:focus-visible strong { color: var(--bloom-magenta); }
+.about-link:hover svg,
+.about-link:focus-visible svg {
+  color: var(--bloom-magenta);
+  transform: translate(1px, -1px);
+}
+.about-footer {
+  margin-top: 18px;
+  border-top-color: var(--paper-shadow);
+}
+.about-footer svg {
+  color: var(--bloom-cyan);
+}
+
+body[data-ui-size="small"] .control-slider.knob-control {
+  min-height: 76px;
+}
+body[data-ui-size="small"] .knob-dial {
+  width: 42px;
+  height: 42px;
+}
+body[data-ui-size="small"] .knob-label {
+  font-size: 7px;
+}
+body[data-ui-size="small"] .knob-value {
+  font-size: 8px;
+}
+body[data-ui-size="large"] .control-slider.knob-control {
+  min-height: 104px;
+}
+body[data-ui-size="large"] .knob-dial {
+  width: 60px;
+  height: 60px;
+}
+body[data-ui-size="large"] .knob-label {
+  font-size: 9px;
+}
+body[data-ui-size="large"] .knob-value {
+  font-size: 10px;
+}
+
+@media (max-width: 620px) {
+  .about-brand-row .bloom-mark {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+  .about-panel {
+    padding: 20px 18px 18px;
+  }
+  .about-link {
+    grid-template-columns: minmax(116px, .8fr) minmax(0, 1fr) 16px;
+    gap: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bloom-mark,
+  .knob-dial,
+  .hover-tooltip {
+    transition: none;
+  }
 }

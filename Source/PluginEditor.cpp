@@ -65,6 +65,9 @@ juce::var speakerProfileRows()
         row->setProperty ("lowGain", source->getProperty ("lowGain"));
         row->setProperty ("midGain", source->getProperty ("midGain"));
         row->setProperty ("highGain", source->getProperty ("highGain"));
+        row->setProperty ("lowMidGain", source->getProperty ("lowMidGain"));
+        row->setProperty ("presenceGain", source->getProperty ("presenceGain"));
+        row->setProperty ("airGain", source->getProperty ("airGain"));
         rows.add (juce::var (row.release()));
     }
 
@@ -117,6 +120,16 @@ double currentBpm (OpenFADRotatorAudioProcessor& processor) noexcept
                     return juce::jlimit (20.0, 300.0, *bpm);
 
     return 120.0;
+}
+
+bool isAllowedExternalLink (const juce::String& url)
+{
+    return url.equalsIgnoreCase ("https://github.com/Junziren")
+        || url.equalsIgnoreCase ("https://github.com/Junziren/")
+        || url.equalsIgnoreCase ("https://github.com/Junziren/openFAD-Rotator")
+        || url.equalsIgnoreCase ("https://github.com/Junziren/openFAD-Rotator/")
+        || url.equalsIgnoreCase ("https://fadrecords.com/openfad")
+        || url.equalsIgnoreCase ("https://fadrecords.com/openfad/");
 }
 }
 
@@ -293,6 +306,14 @@ void OpenFADRotatorAudioProcessorEditor::handleNativeCommand (
     {
         openPresetChooser();
     }
+    else if (type == "openExternal")
+    {
+        const auto url = object->getProperty ("url").toString().trim();
+        if (isAllowedExternalLink (url))
+            handled = juce::URL (url).launchInDefaultBrowser();
+        else
+            handled = false;
+    }
     else
     {
         handled = false;
@@ -307,6 +328,7 @@ void OpenFADRotatorAudioProcessorEditor::sendFullState()
     state->setProperty ("protocol", 1);
     state->setProperty ("type", "fullState");
     state->setProperty ("product", "openFAD Rotator");
+    state->setProperty ("publisher", "Unpure Bloom");
     state->setProperty ("bpm", currentBpm (processor));
     state->setProperty ("parameters", parameterRows (processor));
     state->setProperty ("speakerProfiles", speakerProfileRows());
@@ -376,6 +398,7 @@ void OpenFADRotatorAudioProcessorEditor::sendTelemetry()
     auto telemetry = std::make_unique<juce::DynamicObject>();
     telemetry->setProperty ("rotorPhase", snapshot.rotorPhase);
     telemetry->setProperty ("rotorRate", snapshot.rotorRate);
+    telemetry->setProperty ("rotorSignedRate", snapshot.rotorSignedRate);
     telemetry->setProperty ("bpm", currentBpm (processor));
     if (const auto* direction = processor.parameters.getRawParameterValue (openfad::params::id::direction))
         telemetry->setProperty ("direction", direction->load());

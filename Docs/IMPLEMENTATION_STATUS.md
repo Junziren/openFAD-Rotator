@@ -24,9 +24,19 @@
 - Manifest names, descriptions, and coefficients are included in the native state snapshot; the WebUI draws the selected model response curve from those values with an offline fallback.
 - Distinct rotor structures, feed modes, render modes, quality modes, tail, room damping, and synced predelay behavior.
 - Native-to-WebUI state synchronization for host automation and state restore.
+- Unpure Bloom family UI layer with a Bloom Pad/Fuse-aligned mark, About
+  surface, bilingual parameter explanations, hover tooltips, S/M/L sizing, and
+  wheel/Shift/double-click control gestures. Numeric parameters now use a
+  Fuse-style rotary control with pointer capture, keyboard stepping, perceptual
+  rate/tail travel, and a local `unpure-bloom-mark.svg` asset bundled into the
+  WebView resources.
+- About exposes the author profile, the openFAD Rotator repository, and the
+  openFAD initiative page as visible external links. In the native editor these
+  links go through a small allowlist and open in the system browser without
+  navigating the embedded WebView away from the plugin UI.
 - WebUI/native control alignment with a native program strip, exact factory
   program names, signal-path section labels, two-column parameter grids at
-  standard/large sizes, and a non-shrinking scrollable rack for short editors.
+  every editor size, and a non-shrinking scrollable rack for short editors.
 - Sequence-protected native telemetry snapshots so phase, rate, meters, and band energy arrive as one coherent UI frame.
 - Audio-thread-owned MIDI Freeze note table with message-thread clear requests applied at callback boundaries.
 - Working program, preset, settings, bypass, freeze, advanced-control, keyboard, and fine-adjust UI paths.
@@ -40,7 +50,17 @@
 - `pluginval` strictness level 10, including editor, automation, processing, buses, programs, state, and fuzz tests.
 - Standalone cold launch with the embedded WebView2 page and offline BinaryData resources.
 - Repeatable `Scripts/validate-windows.ps1` smoke path for manifest, WebUI, native artifacts, WebView2 loader, and pluginval completion.
-- Release DSP performance evidence at 48 kHz across 64/128/256/512/1024-sample blocks, with p99 callback timing and finite-output checks.
+- Release DSP performance evidence at 44.1/48/88.2/96/192 kHz across
+  64/128/256/512/1024-sample blocks, with p99 callback timing and finite-output
+  checks.
+- Release full-Processor performance evidence at 44.1/48/88.2/96/192 kHz
+  across 64/128/256/512/1024-sample blocks, including host PlayHead and APVTS
+  reads, with p99 callback timing and finite-output checks.
+- Release callback allocation probe processes 4096 post-prepare blocks across
+  rapid parameter/mode changes with zero heap allocations observed.
+- Full Processor callback allocation probe processes 4096 post-prepare blocks
+  through APVTS reads, PlayHead lookup, MIDI Freeze events, and rapid parameter
+  changes with zero heap allocations observed.
 - Processor host-contract checks cover parameter ID uniqueness, mono/stereo bus negotiation, program changes, gesture writes, project-state and user-preset round trips, and host BPM Sync response.
 - Processor checks also cover per-instance state isolation, no-PlayHead/offline
   processing, rendered Dream tail after an impulse, and monotonic audio-process
@@ -49,7 +69,18 @@
   stereo bus contract, all 40 product parameters, factory programs, gestures,
   state restore, offline audio/Dream tail output, and multi-instance isolation.
 - Deterministic DSP soak checks cover 120 seconds at 48 kHz plus 20 seconds at 96 kHz while cycling speed, direction, Doppler, speaker, room, and Dream parameters.
-- Audited offline Windows Release bundle contains VST3, Standalone, WebView2 loader, license/notices, validation documents, an artifact manifest, and SHA-256 package metadata.
+- Audited offline Windows Release bundle contains VST3, Standalone, WebView2 loader, WebView2 Evergreen Offline x64, VC++ x64 Redistributable, license/notices, validation documents, an artifact manifest, dependency hashes, and SHA-256 archive metadata.
+- Portable Windows package installer verifies package hashes and has passed
+  isolated install/uninstall smoke checks for the VST3 bundle and Standalone.
+- Portable installer preflights the Microsoft WebView2 Evergreen Runtime via
+  registry and installed-file discovery before modifying product paths, with a
+  clear failure when only the bundled loader DLL is present.
+- Automated release-package audit checks the offline WebUI boundary, package
+  metadata, artifact and license hashes, bundle structure, and optional
+  pluginval completion markers.
+- A macOS GitHub Actions workflow is configured to build JUCE 8.0.12 VST3,
+  AUv3, Standalone, WebUI, portable tests, and the headless VST3 host smoke;
+  no hosted runner result is claimed until that workflow executes.
 - Installed Release VST3 copy revalidated with `D:\pluginval\pluginval.exe` at strictness level 10.
 - Installed Release VST3 copy revalidated after adding `Doppler Amount`; pluginval parameter, state, automation, editor, and fuzz passes include the new control.
 - Latest Release Standalone was cold-launched from the rebuilt artifact; the embedded WebGL2 visual and `DOPPLER` control were visible, and a native slider drag from `1.00` to `0.50` synchronized through APVTS before restoring the default.
@@ -60,11 +91,16 @@
 - Redistributable SOFA/HRTF data and convolution-based Studio processing.
 - Real DAW scanning, automation recording, project reload, offline export, and
   DAW-level multi-instance behavior. The local VST3 host smoke wrapper covers
-  bundle loading and plugin-instance isolation but is not a full DAW.
-- macOS VST3, AU/AUv3, Logic Pro validation, signing, and notarization.
-- Installer, upgrade/uninstall, clean-machine and offline-runtime validation.
+  bundle loading, deterministic automation/state/offline-export probes, and
+  plugin-instance isolation, but is not a full DAW.
+- macOS VST3, AU/AUv3 runner result, Logic Pro validation, signing, and
+  notarization. The repository workflow is configured but currently unverified.
+- Clean-machine/offline ZIP installer, upgrade/repair, and runtime deployment
+  validation. The repository's ZIP bundle verifies and carries both shared
+  runtimes; a disconnected VM and upgrade/repair run remain release gates.
 - Steinberg VST3 Validator (an external validator path is not configured on this machine).
-- Cross-machine performance profiling, allocation/deadline instrumentation, and host-level long-run soak tests.
-- Full AGPL/JUCE/third-party release notice audit and signed release artifacts.
+- Cross-machine real-time deadline profiling and host-level long-run soak tests;
+  local DSP/Processor performance and allocation evidence is covered above.
+- Final human/legal AGPL/JUCE/third-party notice review and signed release artifacts.
 
 The deferred items are release gates, not hidden runtime dependencies. The Windows VST3/Standalone build remains fully offline and uses the authored fallback response plus a parameterised HRTF-style approximation until measured curves and a redistributable SOFA asset are accepted. See `Docs/VALIDATION.md` for the evidence and exact scope.

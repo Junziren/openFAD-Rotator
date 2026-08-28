@@ -15,6 +15,13 @@ The current machine has WebView2 SDK headers under the current-user NuGet cache.
 
 Use an Apple Silicon macOS CI runner with the same JUCE checkout. Build VST3, AUv3 and Standalone targets from the same CMake project. Logic Pro validation, signing and notarization remain separate release gates.
 
+The repository includes `.github/workflows/macos-build.yml`, which pins JUCE
+8.0.12, builds the WebUI, configures VST3/AUv3/Standalone plus the portable
+tests and headless VST3 host smoke, runs CTest, and uploads unsigned artifacts.
+A green workflow run proves
+Apple compilation and the listed tests only; it does not prove Logic Pro,
+GarageBand, iPhone/iPad, signing, notarization, or device performance.
+
 ## WebUI protocol
 
 The page calls the JUCE native function `rotatorCommand` with JSON payloads:
@@ -40,6 +47,27 @@ Factory program changes write the complete parameter set. User presets are JSON 
 
 Run `D:\pluginval\pluginval.exe` against the generated VST3 bundle at strictness level 10. The reproducible command and the latest result location are recorded in `Docs/VALIDATION.md`. This validates the Windows VST3 contract only; it does not prove DAW, AU/AUv3, macOS, installer, or release-signing behavior.
 
+The repeatable Windows validation script also runs DSP-only and full Processor
+performance/allocation probes. The Processor probes cover the actual
+`AudioProcessor::processBlock()` path, including APVTS reads, PlayHead lookup,
+and MIDI events; these machine-local results are evidence, not a cross-machine
+real-time guarantee.
+
+The same validation script finishes with a release-package audit. To run that
+audit independently against an existing package staging directory:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\audit-release.ps1 `
+  -BuildDir .\build-vs `
+  -Configuration Release `
+  -PackageRoot .\build-vs\validation\install-smoke-Release-<stamp> `
+  -PluginvalResults .\build-vs\validation\pluginval-<stamp>
+```
+
+The audit verifies offline WebUI assets, package metadata, artifact and
+third-party license hashes, and the pluginval completion marker. It does not
+replace code signing, a clean-machine test, or legal review.
+
 For a Release artifact inventory and SHA-256 evidence file:
 
 ```powershell
@@ -48,10 +76,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\write-artifact-man
 
 The manifest covers every file inside the VST3 bundle plus the Standalone executable and WebView2 loader. It is evidence for comparison, not a code-signing or installer result.
 
-To create an auditable offline Windows bundle after validation:
+To create the offline Windows release bundle after validation:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\package-windows-release.ps1 -Configuration Release
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Scripts\package-windows-offline-release.ps1 -Configuration Release
 ```
 
-The bundle includes the VST3, Standalone executable, WebView2 loader, license/notices, validation documents, artifact manifest, and SHA-256 metadata. It does not install the WebView2 Evergreen Runtime and is not a clean-machine installer.
+The generated ZIP includes the VST3, Standalone executable, WebView2 loader,
+WebView2 Evergreen Offline x64 installer, VC++ x64 Redistributable, validation
+documents, license/notices, artifact manifest, dependency hashes, and archive
+SHA-256 metadata. It is a ZIP-based offline installer bundle rather than a
+single EXE.
+
+After extracting the versioned directory, run the bundled command files as
+administrator:
+
+```powershell
+.\Install-openFAD-Rotator.cmd
+
+.\Uninstall-openFAD-Rotator.cmd
+```
+
+The installer verifies the bundled dependency manifest before running either
+runtime installer. It leaves shared runtimes and `%APPDATA%\openFAD\Rotator`
+user presets in place during uninstall.

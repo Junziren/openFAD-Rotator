@@ -15,12 +15,16 @@ export type SpeakerProfile = {
   lowGain: number;
   midGain: number;
   highGain: number;
+  lowMidGain: number;
+  presenceGain: number;
+  airGain: number;
 };
 
 export type NativeState = {
   protocol?: number;
   type?: string;
   product?: string;
+  publisher?: string;
   bpm?: number;
   parameters?: NativeParameterRow[];
   speakerProfiles?: SpeakerProfile[];
@@ -33,6 +37,7 @@ export type NativeState = {
 export type NativeTelemetry = {
   rotorPhase?: number;
   rotorRate?: number;
+  rotorSignedRate?: number;
   direction?: number;
   audioSequence?: number;
   bpm?: number;
@@ -85,6 +90,9 @@ function parseSpeakerProfiles(value: unknown): SpeakerProfile[] {
       lowGain: finiteProfileNumber(source.lowGain, 1, 0, 4),
       midGain: finiteProfileNumber(source.midGain, 1, 0, 4),
       highGain: finiteProfileNumber(source.highGain, 1, 0, 4),
+      lowMidGain: finiteProfileNumber(source.lowMidGain, 1, 0, 4),
+      presenceGain: finiteProfileNumber(source.presenceGain, 1, 0, 4),
+      airGain: finiteProfileNumber(source.airGain, 1, 0, 4),
     }];
   });
 }
@@ -120,6 +128,9 @@ function parseTelemetry(payload: unknown): NativeTelemetry | undefined {
   return {
     rotorPhase: finiteNumber(telemetry.rotorPhase),
     rotorRate: finiteNumber(telemetry.rotorRate),
+    rotorSignedRate: typeof telemetry.rotorSignedRate === "number"
+      ? Math.min(20, Math.max(-20, finiteNumber(telemetry.rotorSignedRate)))
+      : undefined,
     direction: finiteNumber(telemetry.direction),
     audioSequence: Math.max(0, Math.floor(finiteNumber(telemetry.audioSequence))),
     bpm: Math.min(300, Math.max(20, finiteNumber(telemetry.bpm, 120))),
@@ -213,6 +224,11 @@ export class NativeBridge {
   openPreset() {
     if (!this.backend) return;
     void this.call("openPreset");
+  }
+
+  openExternal(url: string) {
+    if (!this.backend || !url) return;
+    void this.call("openExternal", { url });
   }
 
   dispose() {

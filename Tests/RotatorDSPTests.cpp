@@ -124,6 +124,7 @@ bool checkActiveFinite (double sampleRate, int blockSize)
     const auto snapshot = dsp.getTelemetrySnapshot();
     if (! std::isfinite (snapshot.rotorPhase)
         || ! std::isfinite (snapshot.rotorRate)
+        || ! std::isfinite (snapshot.rotorSignedRate)
         || ! std::isfinite (snapshot.inputPeak)
         || ! std::isfinite (snapshot.outputPeak)
         || ! std::isfinite (snapshot.bandEnergy[0])
@@ -212,20 +213,35 @@ bool checkDirectionTransitionIsSmooth (double sampleRate, int blockSize)
     params.direction = 1;
     auto sawForward = false;
     auto sawReverse = false;
-    for (int block = 0; block < 100; ++block)
+    auto sawSignedForward = false;
+    auto sawSignedReverse = false;
+    auto sawSignedZero = false;
+    // Observe a fixed amount of wall-clock time so high sample rates do not
+    // truncate the inertia-limited coast-through-zero transition.
+    const auto transitionBlocks = std::max (100,
+                                            static_cast<int> (std::ceil (sampleRate * 0.1
+                                                                          / static_cast<double> (probeBlockSize))));
+    for (int block = 0; block < transitionBlocks; ++block)
     {
         dsp.process (buffer, params, true);
-        const auto currentPhase = dsp.getTelemetrySnapshot().rotorPhase;
+        const auto snapshot = dsp.getTelemetrySnapshot();
+        const auto currentPhase = snapshot.rotorPhase;
         const auto delta = wrappedPhaseDelta (previousPhase, currentPhase);
         sawForward = sawForward || delta > 1.0e-5f;
         sawReverse = sawReverse || delta < -1.0e-5f;
+        sawSignedForward = sawSignedForward || snapshot.rotorSignedRate > 1.0e-4f;
+        sawSignedReverse = sawSignedReverse || snapshot.rotorSignedRate < -1.0e-4f;
+        sawSignedZero = sawSignedZero || std::abs (snapshot.rotorSignedRate) < 0.08f;
         previousPhase = currentPhase;
     }
 
-    if (! sawForward || ! sawReverse)
+    if (! sawForward || ! sawReverse || ! sawSignedForward || ! sawSignedReverse || ! sawSignedZero)
     {
         std::cerr << "direction transition did not coast through zero; forward="
-                  << sawForward << " reverse=" << sawReverse << "\n";
+                  << sawForward << " reverse=" << sawReverse
+                  << " signedForward=" << sawSignedForward
+                  << " signedReverse=" << sawSignedReverse
+                  << " signedZero=" << sawSignedZero << "\n";
         return false;
     }
 
@@ -587,6 +603,59 @@ bool checkSpeakerModelTransitionIsSmooth (double sampleRate, int blockSize)
     return true;
 }
 
+bool checkExtendedSpeakerVoicing()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockSize = 512;
+
+    auto baseProfiles = openfad::RotatorDSP::defaultSpeakerProfiles();
+    auto extendedProfiles = baseProfiles;
+    auto& extended = extendedProfiles[1];
+    extended.lowMidGain = 1.85f;
+    extended.presenceGain = 0.62f;
+    extended.airGain = 1.55f;
+
+    openfad::RotatorDSP base;
+    openfad::RotatorDSP extendedDsp;
+    base.prepare (sampleRate, blockSize, 2);
+    extendedDsp.prepare (sampleRate, blockSize, 2);
+    base.setSpeakerProfiles (baseProfiles);
+    extendedDsp.setSpeakerProfiles (extendedProfiles);
+
+    auto baseBuffer = juce::AudioBuffer<float> (2, blockSize);
+    auto extendedBuffer = juce::AudioBuffer<float> (2, blockSize);
+    for (int channel = 0; channel < 2; ++channel)
+        for (int sample = 0; sample < blockSize; ++sample)
+        {
+            const auto time = static_cast<float> (sample + channel * 19);
+            const auto value = 0.24f * std::sin (time * 0.021f)
+                             + 0.16f * std::sin (time * 0.17f)
+                             + 0.08f * std::sin (time * 0.61f);
+            baseBuffer.setSample (channel, sample, value);
+            extendedBuffer.setSample (channel, sample, value);
+        }
+
+    auto params = neutralParams();
+    params.model = 1;
+    params.modelAmount = 1.0f;
+    params.modelBypass = false;
+    params.character = 0.45f;
+    params.mix = 1.0f;
+    base.process (baseBuffer, params, true);
+    extendedDsp.process (extendedBuffer, params, true);
+
+    const auto difference = bufferMaximumDifference (baseBuffer, extendedBuffer);
+    if (! allFinite (baseBuffer) || ! allFinite (extendedBuffer)
+        || ! std::isfinite (difference) || difference < 1.0e-3f)
+    {
+        std::cerr << "extended speaker voicing did not affect the output; difference="
+                  << difference << "\n";
+        return false;
+    }
+
+    return true;
+}
+
 bool checkBinauralSpatialCue (double sampleRate, int blockSize)
 {
     if (blockSize <= 0)
@@ -645,6 +714,47 @@ bool checkBinauralSpatialCue (double sampleRate, int blockSize)
     {
         std::cerr << "Binaural spatial cue missing; difference=" << maximumDifference
                   << " rightEnergy=" << binauralRightEnergy << "\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool checkBinauralImpulseHasPinnaTail()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockSize = 256;
+    openfad::RotatorDSP dsp;
+    dsp.prepare (sampleRate, blockSize, 2);
+
+    auto buffer = juce::AudioBuffer<float> (2, blockSize);
+    buffer.clear();
+    buffer.setSample (0, 0, 1.0f);
+
+    auto params = neutralParams();
+    params.renderMode = 0;
+    params.modelBypass = true;
+    params.modelAmount = 0.0f;
+    params.rotatorAmount = 0.0f;
+    params.dopplerAmount = 0.0f;
+    params.dreamBypass = true;
+    params.earlyReflections = 0.0f;
+    params.angle = 32.0f;
+    params.mix = 1.0f;
+
+    dsp.process (buffer, params, true);
+    if (! allFinite (buffer))
+        return false;
+
+    auto nonZeroSamples = 0;
+    for (int sample = 0; sample < blockSize; ++sample)
+        if (std::abs (buffer.getSample (0, sample)) > 1.0e-5f)
+            ++nonZeroSamples;
+
+    if (nonZeroSamples < 4)
+    {
+        std::cerr << "binaural pinna tail was too short; non-zero samples="
+                  << nonZeroSamples << "\n";
         return false;
     }
 
@@ -876,6 +986,7 @@ bool checkInvalidParametersAreContained()
     return allFinite (buffer)
         && std::isfinite (snapshot.rotorPhase)
         && std::isfinite (snapshot.rotorRate)
+        && std::isfinite (snapshot.rotorSignedRate)
         && std::isfinite (snapshot.inputPeak)
         && std::isfinite (snapshot.outputPeak)
         && std::isfinite (snapshot.bandEnergy[0])
@@ -886,7 +997,7 @@ bool checkInvalidParametersAreContained()
 
 int main()
 {
-    const std::vector<double> sampleRates { 44100.0, 48000.0, 96000.0 };
+    const std::vector<double> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 };
     const std::vector<int> blockSizes { 0, 1, 7, 31, 127, 128, 511, 1024 };
 
     for (const auto sampleRate : sampleRates)
@@ -901,7 +1012,9 @@ int main()
                 || ! checkRotatorAndDopplerAreIndependent (sampleRate, blockSize)
                 || ! checkDopplerAutomationIsContinuous (sampleRate, blockSize)
                 || ! checkSpeakerModelTransitionIsSmooth (sampleRate, blockSize)
+                || ! checkExtendedSpeakerVoicing()
                 || ! checkBinauralSpatialCue (sampleRate, blockSize)
+                || ! checkBinauralImpulseHasPinnaTail()
                 || ! checkBinauralAngleAutomationIsContinuous (sampleRate, blockSize))
             {
                 std::cerr << "DSP regression failed at " << sampleRate << " Hz / " << blockSize << " samples\n";

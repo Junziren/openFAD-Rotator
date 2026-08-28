@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "source": "openFAD authored response archetypes",
   "profiles": [
-    { "id": "pocket-radio", "name": "Pocket Radio", "lowCut": 0.015, "highCut": 0.24, "lowGain": 1.18, "midGain": 1.22, "highGain": 0.66, "description": "Small enclosure, forward midrange, softened air." },
-    { "id": "console-coax", "name": "Console Coax", "lowCut": 0.009, "highCut": 0.35, "lowGain": 1.08, "midGain": 1.08, "highGain": 0.94, "description": "Warm low-mid body with restrained top end." },
-    { "id": "cinema-horn", "name": "Cinema Horn", "lowCut": 0.012, "highCut": 0.42, "lowGain": 1.24, "midGain": 0.96, "highGain": 1.18, "description": "Large low-end bloom and articulate horn presence." },
-    { "id": "british-shelf", "name": "British Shelf", "lowCut": 0.006, "highCut": 0.38, "lowGain": 1.04, "midGain": 1.12, "highGain": 0.88, "description": "Soft upper shelf with a lightly voiced center." },
-    { "id": "american-tower", "name": "American Tower", "lowCut": 0.004, "highCut": 0.48, "lowGain": 1.12, "midGain": 1.02, "highGain": 1.12, "description": "Broad low-frequency scale and bright projection." },
-    { "id": "nearfield-monitor", "name": "Nearfield Monitor", "lowCut": 0.002, "highCut": 0.62, "lowGain": 0.98, "midGain": 1.0, "highGain": 1.26, "description": "Tight low end and extended, revealing highs." },
-    { "id": "pa-stack", "name": "PA Stack", "lowCut": 0.02, "highCut": 0.31, "lowGain": 1.3, "midGain": 0.9, "highGain": 0.72, "description": "Dense low push, controlled mids, roughened top." },
-    { "id": "modern-reference", "name": "Modern Reference", "lowCut": 0.001, "highCut": 0.8, "lowGain": 1.0, "midGain": 1.04, "highGain": 1.16, "description": "Wide-range neutral base with a polished air band." }
+    { "id": "pocket-radio", "name": "Pocket Radio", "lowCut": 0.015, "highCut": 0.24, "lowGain": 1.18, "midGain": 1.22, "highGain": 0.66, "lowMidGain": 1.32, "presenceGain": 1.18, "airGain": 0.72, "description": "Small enclosure, forward midrange, softened air." },
+    { "id": "console-coax", "name": "Console Coax", "lowCut": 0.009, "highCut": 0.35, "lowGain": 1.08, "midGain": 1.08, "highGain": 0.94, "lowMidGain": 1.15, "presenceGain": 1.06, "airGain": 0.92, "description": "Warm low-mid body with restrained top end." },
+    { "id": "cinema-horn", "name": "Cinema Horn", "lowCut": 0.012, "highCut": 0.42, "lowGain": 1.24, "midGain": 0.96, "highGain": 1.18, "lowMidGain": 0.92, "presenceGain": 1.18, "airGain": 1.22, "description": "Large low-end bloom and articulate horn presence." },
+    { "id": "british-shelf", "name": "British Shelf", "lowCut": 0.006, "highCut": 0.38, "lowGain": 1.04, "midGain": 1.12, "highGain": 0.88, "lowMidGain": 1.18, "presenceGain": 1.08, "airGain": 0.82, "description": "Soft upper shelf with a lightly voiced center." },
+    { "id": "american-tower", "name": "American Tower", "lowCut": 0.004, "highCut": 0.48, "lowGain": 1.12, "midGain": 1.02, "highGain": 1.12, "lowMidGain": 1.06, "presenceGain": 1.04, "airGain": 1.20, "description": "Broad low-frequency scale and bright projection." },
+    { "id": "nearfield-monitor", "name": "Nearfield Monitor", "lowCut": 0.002, "highCut": 0.62, "lowGain": 0.98, "midGain": 1.0, "highGain": 1.26, "lowMidGain": 0.94, "presenceGain": 1.04, "airGain": 1.32, "description": "Tight low end and extended, revealing highs." },
+    { "id": "pa-stack", "name": "PA Stack", "lowCut": 0.02, "highCut": 0.31, "lowGain": 1.3, "midGain": 0.9, "highGain": 0.72, "lowMidGain": 1.28, "presenceGain": 0.88, "airGain": 0.68, "description": "Dense low push, controlled mids, roughened top." },
+    { "id": "modern-reference", "name": "Modern Reference", "lowCut": 0.001, "highCut": 0.8, "lowGain": 1.0, "midGain": 1.04, "highGain": 1.16, "lowMidGain": 1.0, "presenceGain": 1.08, "airGain": 1.24, "description": "Wide-range neutral base with a polished air band." }
   ]
 }

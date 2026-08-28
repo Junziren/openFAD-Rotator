@@ -1,4 +1,5 @@
 #include <juce_audio_processors_headless/juce_audio_processors_headless.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 
 #include <algorithm>
 #include <cmath>
@@ -11,9 +12,12 @@ namespace
 using juce::AudioPluginFormatManager;
 using juce::AudioPluginInstance;
 using juce::AudioBuffer;
+using juce::AudioFormatReader;
+using juce::AudioFormatWriterOptions;
 using juce::HostedAudioProcessorParameter;
 using juce::MidiBuffer;
 using juce::PluginDescription;
+using juce::WavAudioFormat;
 
 class TestPlayHead final : public juce::AudioPlayHead
 {
@@ -193,7 +197,7 @@ bool checkDescription (const PluginDescription& description, const juce::File& p
     }
 
     if (! description.name.containsIgnoreCase ("openFAD")
-        || ! description.manufacturerName.containsIgnoreCase ("openFAD")
+        || ! description.manufacturerName.containsIgnoreCase ("Unpure Bloom")
         || ! description.pluginFormatName.containsIgnoreCase ("VST3")
         || description.isInstrument)
     {
@@ -370,6 +374,167 @@ bool checkStateAndAutomation (AudioPluginInstance& instance)
     return true;
 }
 
+bool checkOfflineExport (AudioPluginFormatManager& manager,
+                         const PluginDescription& description)
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr int blockSize = 256;
+    constexpr int inputBlocks = 192;
+    constexpr int tailBlocks = 256;
+    constexpr int totalBlocks = inputBlocks + tailBlocks;
+    constexpr auto expectedDoppler = 0.22f;
+    constexpr auto expectedDirection = 1.0f;
+
+    auto instance = createInstance (manager, description, sampleRate, blockSize,
+                                    "offline export VST3 instance");
+    if (instance == nullptr)
+        return false;
+
+    instance->setRateAndBufferSizeDetails (sampleRate, blockSize);
+    instance->setNonRealtime (true);
+    instance->prepareToPlay (sampleRate, blockSize);
+
+    TestPlayHead playHead;
+    playHead.position.setBpm (120.0);
+    playHead.position.setIsPlaying (true);
+    instance->setPlayHead (&playHead);
+
+    if (! setNormalized (*instance, "mix", 1.0f)
+        || ! setNormalized (*instance, "modelAmount", 1.0f)
+        || ! setNormalized (*instance, "rotatorAmount", 1.0f)
+        || ! setNormalized (*instance, "dopplerAmount", 0.15f)
+        || ! setNormalized (*instance, "dreamBypass", 0.0f)
+        || ! setNormalized (*instance, "dream", 0.72f)
+        || ! setNormalized (*instance, "predelay", 0.08f)
+        || ! setNormalized (*instance, "tail", (6.0f - 0.2f) / (12.0f - 0.2f)))
+    {
+        std::cerr << "could not configure VST3 offline export probe\n";
+        return false;
+    }
+
+    const auto outputFile = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                                .getNonexistentChildFile ("openfad-rotator-host-export", ".wav");
+    const auto cleanup = [&] { outputFile.deleteFile(); };
+
+    auto fileStream = std::make_unique<juce::FileOutputStream> (outputFile);
+    if (fileStream == nullptr || fileStream->failedToOpen())
+    {
+        std::cerr << "could not open VST3 offline export file\n";
+        cleanup();
+        return false;
+    }
+
+    std::unique_ptr<juce::OutputStream> stream = std::move (fileStream);
+
+    WavAudioFormat wav;
+    auto writerOptions = AudioFormatWriterOptions {}
+                             .withSampleRate (sampleRate)
+                             .withNumChannels (2)
+                             .withBitsPerSample (24)
+                             .withSampleFormat (AudioFormatWriterOptions::SampleFormat::integral)
+                             .withMetadata ("Software", "openFAD Rotator host smoke");
+    auto writer = wav.createWriterFor (stream, writerOptions);
+    if (writer == nullptr)
+    {
+        std::cerr << "could not create VST3 offline export writer\n";
+        cleanup();
+        return false;
+    }
+
+    auto buffer = AudioBuffer<float> (2, blockSize);
+    MidiBuffer midi;
+    juce::MemoryBlock projectState;
+    bool stateCaptured = false;
+    bool stateRestored = false;
+    bool finite = true;
+    bool wroteAllBlocks = true;
+    auto renderedPeak = 0.0f;
+    auto renderedTailPeak = 0.0f;
+
+    for (int block = 0; block < totalBlocks; ++block)
+    {
+        // These writes model host automation events arriving between blocks.
+        if (block == 16)
+            setNormalized (*instance, "dopplerAmount", expectedDoppler);
+        if (block == 48)
+            setNormalized (*instance, "direction", expectedDirection);
+        if (block == 80)
+        {
+            instance->getStateInformation (projectState);
+            stateCaptured = ! projectState.isEmpty();
+            setNormalized (*instance, "dopplerAmount", 0.0f, false);
+            setNormalized (*instance, "direction", 0.0f, false);
+            setNormalized (*instance, "mix", 0.0f, false);
+        }
+        if (block == 128 && stateCaptured)
+        {
+            instance->setStateInformation (projectState.getData(),
+                                            static_cast<int> (projectState.getSize()));
+            stateRestored = std::abs (normalizedValue (*instance, "dopplerAmount") - expectedDoppler) < 1.0e-3f
+                         && std::abs (normalizedValue (*instance, "direction") - expectedDirection) < 1.0e-3f
+                         && std::abs (normalizedValue (*instance, "mix") - 1.0f) < 1.0e-3f;
+        }
+        if (block == 160)
+        {
+            playHead.position.setBpm (90.0);
+            setNormalized (*instance, "speedMode", 4.0f / 4.0f);
+        }
+
+        if (block < inputBlocks)
+            fillSignal (buffer, block * blockSize);
+        else
+            buffer.clear();
+
+        instance->processBlock (buffer, midi);
+        finite = finite && allFinite (buffer);
+        renderedPeak = std::max (renderedPeak, peak (buffer));
+        if (block >= inputBlocks)
+            renderedTailPeak = std::max (renderedTailPeak, peak (buffer));
+        wroteAllBlocks = wroteAllBlocks
+                      && writer->writeFromAudioSampleBuffer (buffer, 0, blockSize);
+    }
+
+    writer.reset();
+    instance->setPlayHead (nullptr);
+
+    const auto expectedSamples = static_cast<juce::int64> (totalBlocks) * blockSize;
+    juce::AudioFormatManager readerManager;
+    readerManager.registerBasicFormats();
+    std::unique_ptr<AudioFormatReader> reader (readerManager.createReaderFor (outputFile));
+    auto decoded = AudioBuffer<float> (2, static_cast<int> (expectedSamples));
+    const auto readOk = reader != nullptr
+                     && reader->numChannels == 2
+                     && std::abs (reader->sampleRate - sampleRate) < 0.01
+                     && reader->lengthInSamples == expectedSamples
+                     && reader->read (&decoded, 0, static_cast<int> (expectedSamples), 0, true, true);
+    const auto decodedPeak = peak (decoded);
+    const auto valid = stateCaptured && stateRestored && finite && wroteAllBlocks && readOk
+                    && outputFile.existsAsFile() && outputFile.getSize() > 44
+                    && std::isfinite (renderedPeak) && renderedPeak > 1.0e-4f
+                    && std::isfinite (renderedTailPeak) && renderedTailPeak > 1.0e-5f
+                    && std::isfinite (decodedPeak) && decodedPeak > 1.0e-4f;
+
+    if (! valid)
+    {
+        std::cerr << "VST3 offline export failed: stateCaptured=" << stateCaptured
+                  << " stateRestored=" << stateRestored
+                  << " finite=" << finite
+                  << " wroteAllBlocks=" << wroteAllBlocks
+                  << " readOk=" << readOk
+                  << " renderedPeak=" << renderedPeak
+                  << " renderedTailPeak=" << renderedTailPeak
+                  << " decodedPeak=" << decodedPeak << "\n";
+        cleanup();
+        return false;
+    }
+
+    std::cout << "VST3 offline export passed: samples=" << expectedSamples
+              << " stateReload=1 peak=" << renderedPeak
+              << " tailPeak=" << renderedTailPeak << "\n";
+    cleanup();
+    return true;
+}
+
 bool checkMultiInstanceIsolation (AudioPluginFormatManager& manager,
                                   const PluginDescription& description)
 {
@@ -472,6 +637,7 @@ int main (int argc, char** argv)
         || ! checkParameterContract (*instance)
         || ! checkAudioPath (*instance)
         || ! checkStateAndAutomation (*instance)
+        || ! checkOfflineExport (manager, description)
         || ! checkMultiInstanceIsolation (manager, description))
         return 1;
 

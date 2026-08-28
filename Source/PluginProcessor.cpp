@@ -211,6 +211,9 @@ openfad::RotatorDSP::SpeakerProfiles loadSpeakerProfiles()
         profile.lowGain = finiteClamped (object->getProperty ("lowGain"), profile.lowGain, 0.1f, 4.0f);
         profile.midGain = finiteClamped (object->getProperty ("midGain"), profile.midGain, 0.1f, 4.0f);
         profile.highGain = finiteClamped (object->getProperty ("highGain"), profile.highGain, 0.1f, 4.0f);
+        profile.lowMidGain = finiteClamped (object->getProperty ("lowMidGain"), profile.lowMidGain, 0.1f, 4.0f);
+        profile.presenceGain = finiteClamped (object->getProperty ("presenceGain"), profile.presenceGain, 0.1f, 4.0f);
+        profile.airGain = finiteClamped (object->getProperty ("airGain"), profile.airGain, 0.1f, 4.0f);
     }
 
     return profiles;

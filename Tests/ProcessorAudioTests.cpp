@@ -59,6 +59,27 @@ bool setActual (Processor& processor, const char* id, float actual, bool withGes
     return true;
 }
 
+bool removeStateParameter (juce::ValueTree state, const char* parameterId)
+{
+    if (! state.isValid())
+        return false;
+
+    for (int index = state.getNumChildren(); --index >= 0;)
+    {
+        const auto child = state.getChild (index);
+        if (child.getProperty ("id").toString() == parameterId)
+        {
+            state.removeChild (index, nullptr);
+            return true;
+        }
+
+        if (removeStateParameter (child, parameterId))
+            return true;
+    }
+
+    return false;
+}
+
 float actualValue (const Processor& processor, const char* id, float fallback = 0.0f)
 {
     if (const auto* raw = processor.parameters.getRawParameterValue (id))
@@ -287,6 +308,39 @@ bool checkProgramsAndStateRoundTrip()
         || std::abs (actualValue (restored, openfad::params::id::mix) - 0.63f) > 1.0e-3f)
     {
         std::cerr << "state round-trip did not restore program and parameters\n";
+        return false;
+    }
+
+    auto legacyXml = Processor::getXmlFromBinary (state.getData(), static_cast<int> (state.getSize()));
+    if (legacyXml == nullptr)
+    {
+        std::cerr << "could not decode state for legacy migration probe\n";
+        return false;
+    }
+
+    auto legacyState = juce::ValueTree::fromXml (*legacyXml);
+    if (! removeStateParameter (legacyState, openfad::params::id::dopplerAmount))
+    {
+        std::cerr << "legacy migration probe could not remove Doppler Amount\n";
+        return false;
+    }
+
+    juce::MemoryBlock legacyBinary;
+    if (auto legacyStateXml = legacyState.createXml())
+        Processor::copyXmlToBinary (*legacyStateXml, legacyBinary);
+    else
+    {
+        std::cerr << "legacy migration probe could not encode state\n";
+        return false;
+    }
+
+    Processor legacyRestored;
+    legacyRestored.setStateInformation (legacyBinary.getData(),
+                                        static_cast<int> (legacyBinary.getSize()));
+    if (std::abs (actualValue (legacyRestored, openfad::params::id::mix) - 0.63f) > 1.0e-3f
+        || std::abs (actualValue (legacyRestored, openfad::params::id::dopplerAmount) - 1.0f) > 1.0e-3f)
+    {
+        std::cerr << "legacy state migration did not preserve existing values or restore Doppler default\n";
         return false;
     }
 

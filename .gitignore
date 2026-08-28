@@ -2,6 +2,10 @@ build/
 build-*/
 WebUI/node_modules/
 WebUI/dist/assets/
+build-vs/installer-deps/
+build-vs/installer-work/
+build-vs/offline-release/
+build-vs/offline-release-work/
 *.user
 *.suo
 *.vcxproj.user

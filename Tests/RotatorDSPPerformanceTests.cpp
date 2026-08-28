@@ -130,10 +130,10 @@ bool runBlockBenchmark (int blockSize, double sampleRate)
 
 int main()
 {
-    constexpr double sampleRate = 48000.0;
-    for (const auto blockSize : { 64, 128, 256, 512, 1024 })
-        if (! runBlockBenchmark (blockSize, sampleRate))
-            return 1;
+    for (const auto sampleRate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 })
+        for (const auto blockSize : { 64, 128, 256, 512, 1024 })
+            if (! runBlockBenchmark (blockSize, sampleRate))
+                return 1;
 
     std::cout << "RotatorDSP performance checks passed\n";
     return 0;

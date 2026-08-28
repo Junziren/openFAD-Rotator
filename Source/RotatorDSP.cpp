@@ -95,14 +95,14 @@ RotatorDSP::Params sanitiseParams (RotatorDSP::Params params) noexcept
 RotatorDSP::SpeakerProfiles RotatorDSP::defaultSpeakerProfiles() noexcept
 {
     return {{
-        { 0.015f, 0.24f, 1.18f, 1.22f, 0.66f },
-        { 0.009f, 0.35f, 1.08f, 1.08f, 0.94f },
-        { 0.012f, 0.42f, 1.24f, 0.96f, 1.18f },
-        { 0.006f, 0.38f, 1.04f, 1.12f, 0.88f },
-        { 0.004f, 0.48f, 1.12f, 1.02f, 1.12f },
-        { 0.002f, 0.62f, 0.98f, 1.00f, 1.26f },
-        { 0.020f, 0.31f, 1.30f, 0.90f, 0.72f },
-        { 0.001f, 0.80f, 1.00f, 1.04f, 1.16f }
+        { 0.015f, 0.24f, 1.18f, 1.22f, 0.66f, 1.32f, 1.18f, 0.72f },
+        { 0.009f, 0.35f, 1.08f, 1.08f, 0.94f, 1.15f, 1.06f, 0.92f },
+        { 0.012f, 0.42f, 1.24f, 0.96f, 1.18f, 0.92f, 1.18f, 1.22f },
+        { 0.006f, 0.38f, 1.04f, 1.12f, 0.88f, 1.18f, 1.08f, 0.82f },
+        { 0.004f, 0.48f, 1.12f, 1.02f, 1.12f, 1.06f, 1.04f, 1.20f },
+        { 0.002f, 0.62f, 0.98f, 1.00f, 1.26f, 0.94f, 1.04f, 1.32f },
+        { 0.020f, 0.31f, 1.30f, 0.90f, 0.72f, 1.28f, 0.88f, 0.68f },
+        { 0.001f, 0.80f, 1.00f, 1.04f, 1.16f, 1.00f, 1.08f, 1.24f }
     }};
 }
 
@@ -135,6 +135,9 @@ void RotatorDSP::prepare (double newSampleRate, int, int newNumChannels)
     speakerLowGainSmoother.reset (sampleRate, 0.024);
     speakerMidGainSmoother.reset (sampleRate, 0.024);
     speakerHighGainSmoother.reset (sampleRate, 0.024);
+    speakerLowMidGainSmoother.reset (sampleRate, 0.024);
+    speakerPresenceGainSmoother.reset (sampleRate, 0.024);
+    speakerAirGainSmoother.reset (sampleRate, 0.024);
     speakerModelGainSmoother.reset (sampleRate, 0.024);
     speakerDriveSmoother.reset (sampleRate, 0.024);
     binauralAzimuthSmoother.reset (sampleRate, 0.024);
@@ -158,6 +161,7 @@ void RotatorDSP::reset()
     telemetryRotorPhase.store (0.0f, std::memory_order_relaxed);
     telemetrySequence.store (0u, std::memory_order_release);
     telemetryRotorRate.store (0.0f, std::memory_order_relaxed);
+    telemetryRotorSignedRate.store (0.0f, std::memory_order_relaxed);
     telemetryInputPeak.store (0.0f, std::memory_order_relaxed);
     telemetryOutputPeak.store (0.0f, std::memory_order_relaxed);
     telemetryBand0.store (0.0f, std::memory_order_relaxed);
@@ -188,6 +192,9 @@ void RotatorDSP::reset()
     speakerLowGainSmoother.setCurrentAndTargetValue (0.0f);
     speakerMidGainSmoother.setCurrentAndTargetValue (0.0f);
     speakerHighGainSmoother.setCurrentAndTargetValue (0.0f);
+    speakerLowMidGainSmoother.setCurrentAndTargetValue (0.0f);
+    speakerPresenceGainSmoother.setCurrentAndTargetValue (0.0f);
+    speakerAirGainSmoother.setCurrentAndTargetValue (0.0f);
     speakerModelGainSmoother.setCurrentAndTargetValue (0.0f);
     speakerDriveSmoother.setCurrentAndTargetValue (0.0f);
     binauralAzimuthSmoother.setCurrentAndTargetValue (0.0f);
@@ -245,11 +252,25 @@ RotatorDSP::SpeakerBands RotatorDSP::processSpeaker (float input,
                                   * (params.quality == 1 ? 0.72f : 1.0f);
     const auto cabinet = onePoleLowpass (mid * resonance, state.cabinet, cabinetCoefficient);
     const auto amount = clamp01 (modelAmount);
+    // Split the broad mid band once more so cabinet/body and horn presence can
+    // be voiced independently without adding a second filter-bank allocation.
+    const auto lowMidCoefficient = std::clamp (0.045f + 0.12f * voicing.lowCut
+                                               + 0.06f * params.resonance,
+                                               0.035f, 0.24f);
+    const auto presenceCoefficient = std::clamp (0.16f + 0.16f * voicing.highCut
+                                                 + 0.08f * (params.quality == 1 ? 1.0f : 0.0f),
+                                                 0.14f, 0.52f);
+    const auto lowMid = onePoleLowpass (mid, state.lowMid, lowMidCoefficient);
+    const auto presenceShelf = onePoleLowpass (mid, state.presence, presenceCoefficient);
+    const auto presence = presenceShelf - lowMid;
+    const auto lowMidGain = 0.5f * (voicing.midGain + voicing.lowMidGain);
+    const auto presenceGain = 0.5f * (voicing.midGain + voicing.presenceGain);
     const SpeakerBands modeled {
         low * voicing.lowGain * voicing.modelGain,
-        (mid * voicing.midGain
+        (lowMid * lowMidGain
+         + presence * presenceGain
          + cabinet * (0.32f + 0.18f * params.resonance)) * voicing.modelGain,
-        high * voicing.highGain * voicing.modelGain
+        high * voicing.highGain * voicing.airGain * voicing.modelGain
     };
     return {
         low + (modeled.low - low) * amount,
@@ -323,6 +344,43 @@ float RotatorDSP::processBinauralDelay (float input,
     const auto fraction = readPosition - static_cast<float> (index);
     const auto next = (index + 1u) % delay.size();
     return delay[index] + (delay[next] - delay[index]) * fraction;
+}
+
+float RotatorDSP::processHrtfFilter (float input,
+                                     ChannelState& state,
+                                     float farRatio,
+                                     float lateral) noexcept
+{
+    // A compact, minimum-phase ear/pinna cue. This is intentionally an
+    // original embedded filter rather than an unlicensed SOFA/HRTF capture.
+    // Eight samples are enough to add a stable early spectral fingerprint
+    // while keeping the callback cost bounded and allocation-free.
+    constexpr std::array<float, 8> taps {
+        0.86f, 0.19f, -0.11f, 0.075f, -0.045f, 0.026f, -0.014f, 0.008f
+    };
+
+    const auto safeInput = std::isfinite (input) ? input : 0.0f;
+    const auto safeFar = clamp01 (farRatio);
+    const auto safeLateral = clamp01 (std::abs (lateral));
+    auto& history = state.hrtfHistory;
+    const auto write = state.hrtfWrite % history.size();
+    history[write] = safeInput;
+
+    auto filtered = 0.0f;
+    for (size_t tap = 0; tap < taps.size(); ++tap)
+    {
+        const auto index = (write + history.size() - tap) % history.size();
+        filtered += history[index] * taps[tap];
+    }
+
+    state.hrtfWrite = (write + 1u) % history.size();
+    const auto cueMix = std::clamp (0.10f + 0.22f * safeFar + 0.06f * safeLateral,
+                                    0.08f, 0.36f);
+    const auto shoulderLoss = std::clamp (0.015f + 0.08f * safeFar
+                                          + 0.025f * safeLateral,
+                                          0.0f, 0.16f);
+    const auto shaped = safeInput * (1.0f - cueMix) + filtered * cueMix;
+    return shaped * (1.0f - shoulderLoss);
 }
 
 float RotatorDSP::processDream (float input,
@@ -426,6 +484,9 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
     const auto speakerLowGainTarget = finiteClamp (profile.lowGain, 1.0f, 0.0f, 4.0f);
     const auto speakerMidGainTarget = finiteClamp (profile.midGain, 1.0f, 0.0f, 4.0f);
     const auto speakerHighGainTarget = finiteClamp (profile.highGain, 1.0f, 0.0f, 4.0f);
+    const auto speakerLowMidGainTarget = finiteClamp (profile.lowMidGain, 1.0f, 0.0f, 4.0f);
+    const auto speakerPresenceGainTarget = finiteClamp (profile.presenceGain, 1.0f, 0.0f, 4.0f);
+    const auto speakerAirGainTarget = finiteClamp (profile.airGain, 1.0f, 0.0f, 4.0f);
     const auto speakerModelGainTarget = params.loudnessMatch ? modelGain (model) : 1.0f;
     const auto speakerDriveTarget = std::clamp (speakerDrive (params), 0.0f, 1.0f);
     const auto binauralAzimuthTarget = std::clamp (params.angle / 45.0f, -1.0f, 1.0f);
@@ -445,6 +506,9 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         speakerLowGainSmoother.setCurrentAndTargetValue (speakerLowGainTarget);
         speakerMidGainSmoother.setCurrentAndTargetValue (speakerMidGainTarget);
         speakerHighGainSmoother.setCurrentAndTargetValue (speakerHighGainTarget);
+        speakerLowMidGainSmoother.setCurrentAndTargetValue (speakerLowMidGainTarget);
+        speakerPresenceGainSmoother.setCurrentAndTargetValue (speakerPresenceGainTarget);
+        speakerAirGainSmoother.setCurrentAndTargetValue (speakerAirGainTarget);
         speakerModelGainSmoother.setCurrentAndTargetValue (speakerModelGainTarget);
         speakerDriveSmoother.setCurrentAndTargetValue (speakerDriveTarget);
         binauralAzimuthSmoother.setCurrentAndTargetValue (binauralAzimuthTarget);
@@ -466,6 +530,9 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         speakerLowGainSmoother.setTargetValue (speakerLowGainTarget);
         speakerMidGainSmoother.setTargetValue (speakerMidGainTarget);
         speakerHighGainSmoother.setTargetValue (speakerHighGainTarget);
+        speakerLowMidGainSmoother.setTargetValue (speakerLowMidGainTarget);
+        speakerPresenceGainSmoother.setTargetValue (speakerPresenceGainTarget);
+        speakerAirGainSmoother.setTargetValue (speakerAirGainTarget);
         speakerModelGainSmoother.setTargetValue (speakerModelGainTarget);
         speakerDriveSmoother.setTargetValue (speakerDriveTarget);
         binauralAzimuthSmoother.setTargetValue (binauralAzimuthTarget);
@@ -516,6 +583,9 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
             speakerLowGainSmoother.getNextValue(),
             speakerMidGainSmoother.getNextValue(),
             speakerHighGainSmoother.getNextValue(),
+            speakerLowMidGainSmoother.getNextValue(),
+            speakerPresenceGainSmoother.getNextValue(),
+            speakerAirGainSmoother.getNextValue(),
             speakerModelGainSmoother.getNextValue(),
             speakerDriveSmoother.getNextValue()
         };
@@ -643,17 +713,20 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
         const auto rightShaped = channelStates[1].hrtfShadow * (1.0f - rightShadow * 0.08f)
                                + rightHigh * (1.0f - rightShadow);
 
-        channelStates[0].hrtfCrossfeed += (rightShaped - channelStates[0].hrtfCrossfeed)
+        const auto leftEar = processHrtfFilter (leftShaped, channelStates[0], leftFar, azimuth);
+        const auto rightEar = processHrtfFilter (rightShaped, channelStates[1], rightFar, azimuth);
+
+        channelStates[0].hrtfCrossfeed += (rightEar - channelStates[0].hrtfCrossfeed)
                                          * (0.018f + 0.07f * crossfeed);
-        channelStates[1].hrtfCrossfeed += (leftShaped - channelStates[1].hrtfCrossfeed)
+        channelStates[1].hrtfCrossfeed += (leftEar - channelStates[1].hrtfCrossfeed)
                                          * (0.018f + 0.07f * crossfeed);
 
         const auto itdSamples = static_cast<float> (sampleRate * maxBinauralItdSeconds);
-        const auto binauralLeft = processBinauralDelay (leftShaped,
+        const auto binauralLeft = processBinauralDelay (leftEar,
                                                         binauralDelayLeft,
                                                         itdSamples * leftFar) * 0.94f
                                 + channelStates[0].hrtfCrossfeed * crossfeed;
-        const auto binauralRight = processBinauralDelay (rightShaped,
+        const auto binauralRight = processBinauralDelay (rightEar,
                                                          binauralDelayRight,
                                                          itdSamples * rightFar) * 0.94f
                                  + channelStates[1].hrtfCrossfeed * crossfeed;
@@ -714,6 +787,8 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
     telemetryRotorPhase.store (std::isfinite (rotorPhase) ? rotorPhase : 0.0f, std::memory_order_relaxed);
     telemetryRotorRate.store (std::isfinite (rotorRate) ? std::abs (rotorRate) : 0.0f,
                               std::memory_order_relaxed);
+    telemetryRotorSignedRate.store (std::isfinite (rotorRate) ? rotorRate : 0.0f,
+                                    std::memory_order_relaxed);
     telemetryInputPeak.store (std::isfinite (inputPeak) ? inputPeak : 0.0f, std::memory_order_relaxed);
     telemetryOutputPeak.store (std::isfinite (outputPeak) ? outputPeak : 0.0f, std::memory_order_relaxed);
     telemetryBand0.store (std::isfinite (bandEnergy[0]) ? bandEnergy[0] : 0.0f, std::memory_order_relaxed);
