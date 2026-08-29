@@ -370,8 +370,16 @@ if (BUILD_TESTING)
         target_compile_options(openFADRotator_VST3HostSmoke PRIVATE /utf-8)
     endif()
 
+    if (APPLE)
+        set(OPENFAD_VST3_HOST_SMOKE_PATH
+            "$<TARGET_BUNDLE_DIR:openFADRotator_VST3>")
+    else()
+        set(OPENFAD_VST3_HOST_SMOKE_PATH
+            "$<TARGET_FILE_DIR:openFADRotator_VST3>/openFAD Rotator.vst3")
+    endif()
+
     add_test(NAME openFADRotator_VST3HostSmoke
         COMMAND openFADRotator_VST3HostSmoke
-            "$<TARGET_FILE_DIR:openFADRotator_VST3>/openFAD Rotator.vst3"
+            "${OPENFAD_VST3_HOST_SMOKE_PATH}"
     )
 endif()
