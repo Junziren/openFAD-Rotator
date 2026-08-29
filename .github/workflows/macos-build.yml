@@ -1,13 +1,20 @@
 name: macOS build
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: macos-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  MACOSX_DEPLOYMENT_TARGET: "12.0"
 
 jobs:
   build:
@@ -40,27 +47,57 @@ jobs:
           npm run build
 
       - name: Configure CMake
-        run: >-
-          cmake -S . -B build-macos -G Ninja
-          -DJUCE_PATH="$GITHUB_WORKSPACE/JUCE"
-          -DBUILD_TESTING=ON
-          -DCMAKE_BUILD_TYPE=Release
+        run: |
+          cmake -S . -B build-macos -G Xcode \
+            -DJUCE_PATH="$GITHUB_WORKSPACE/JUCE" \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+            -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO
 
       - name: Build AUv3, VST3, Standalone and tests
-        run: >-
-          cmake --build build-macos
-          --target openFADRotator_All
-          openFADRotator_DSPTests
-          openFADRotator_DSPAllocationTests
-          openFADRotator_DSPPerformanceTests
-          openFADRotator_DSPSoakTests
-          openFADRotator_ProcessorTests
-          openFADRotator_ProcessorAllocationTests
-          openFADRotator_ProcessorPerformanceTests
-          openFADRotator_VST3HostSmoke
+        run: |
+          cmake --build build-macos --config Release --target \
+            openFADRotator_All \
+            openFADRotator_DSPTests \
+            openFADRotator_DSPAllocationTests \
+            openFADRotator_DSPPerformanceTests \
+            openFADRotator_DSPSoakTests \
+            openFADRotator_ProcessorTests \
+            openFADRotator_ProcessorAllocationTests \
+            openFADRotator_ProcessorPerformanceTests \
+            openFADRotator_VST3HostSmoke
 
       - name: Run CTest
-        run: ctest --test-dir build-macos --output-on-failure
+        run: ctest --test-dir build-macos -C Release --output-on-failure
+
+      - name: Verify universal2 plugin bundles
+        run: |
+          set -euo pipefail
+
+          artefacts="build-macos/openFADRotator_artefacts/Release"
+          vst3="$artefacts/VST3/openFAD Rotator.vst3"
+          standalone="$artefacts/Standalone"
+
+          test -d "$vst3"
+          test -d "$standalone"
+
+          vst3_binary="$(find "$vst3/Contents" -type f -perm -111 -print -quit)"
+          test -n "$vst3_binary"
+          vst3_arches="$(lipo -archs "$vst3_binary")"
+          echo "VST3 binary: $vst3_binary ($vst3_arches)"
+          [[ "$vst3_arches" == *arm64* ]]
+          [[ "$vst3_arches" == *x86_64* ]]
+
+          appex="$(find "$artefacts/AUv3" -type d -name '*.appex' -print -quit)"
+          test -n "$appex"
+          appex_binary="$(find "$appex" -type f -perm -111 -print -quit)"
+          test -n "$appex_binary"
+          appex_arches="$(lipo -archs "$appex_binary")"
+          echo "AUv3 extension: $appex_binary ($appex_arches)"
+          [[ "$appex_arches" == *arm64* ]]
+          [[ "$appex_arches" == *x86_64* ]]
 
       - name: Upload unsigned plugin artifacts
         if: always()
