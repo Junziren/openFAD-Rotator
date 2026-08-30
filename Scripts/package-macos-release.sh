@@ -68,7 +68,7 @@ BUILD_DIR="$(resolve_path "$BUILD_DIR")"
 [ -d "$BUILD_DIR" ] || die "build directory not found: $BUILD_DIR"
 
 if [ -z "$PRODUCT_VERSION" ]; then
-    PRODUCT_VERSION="$(sed -nE 's/.*project\s*\(\s*openFADRotator\s+VERSION\s+([0-9]+(\.[0-9]+){1,3}).*/\1/p' "$ROOT/CMakeLists.txt" | head -n 1)"
+    PRODUCT_VERSION="$(sed -nE 's/.*project[[:space:]]*\([[:space:]]*openFADRotator[[:space:]]+VERSION[[:space:]]+([0-9]+(\.[0-9]+){1,3}).*/\1/p' "$ROOT/CMakeLists.txt" | head -n 1)"
 fi
 [ -n "$PRODUCT_VERSION" ] || die "could not determine product version"
 case "$PRODUCT_VERSION" in
