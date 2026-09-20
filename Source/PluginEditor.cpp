@@ -189,6 +189,7 @@ juce::WebBrowserComponent::Options OpenFADRotatorAudioProcessorEditor::makeBrows
 OpenFADRotatorAudioProcessorEditor::~OpenFADRotatorAudioProcessorEditor()
 {
     stopTimer();
+    endAllGestures();
     fileChooser.reset();
     for (auto* parameter : processor.getParameters())
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
@@ -207,9 +208,34 @@ void OpenFADRotatorAudioProcessorEditor::resized()
 
 void OpenFADRotatorAudioProcessorEditor::timerCallback()
 {
-    if (stateDirty.exchange (false, std::memory_order_acq_rel))
+    const auto visible = isShowing();
+    if (! visible)
+    {
+        endAllGestures();
+        wasVisible = false;
+        return;
+    }
+    if (! wasVisible)
+    {
+        browser.emitEventIfBrowserIsVisible ("visibility", true);
+        markStateDirty();
+    }
+    wasVisible = true;
+    const auto revision = processor.getPresetRevision();
+    if (stateDirty.exchange (false, std::memory_order_acq_rel) || revision != lastPresetRevision)
+    {
+        lastPresetRevision = revision;
         sendFullState();
+    }
     sendTelemetry();
+}
+
+void OpenFADRotatorAudioProcessorEditor::endAllGestures()
+{
+    for (const auto& id : activeGestures)
+        if (auto* parameter = processor.parameters.getParameter (id))
+            parameter->endChangeGesture();
+    activeGestures.clear();
 }
 
 void OpenFADRotatorAudioProcessorEditor::parameterChanged (const juce::String&, float)
@@ -233,6 +259,11 @@ void OpenFADRotatorAudioProcessorEditor::handleNativeCommand (
     }
 
     auto payload = args[0].toString();
+    if (payload.length() > 8192)
+    {
+        completion (makeObject ({ { "ok", false }, { "error", "command too large" } }));
+        return;
+    }
     auto parsed = juce::JSON::parse (payload);
     if (! parsed.isObject())
     {
@@ -262,9 +293,25 @@ void OpenFADRotatorAudioProcessorEditor::handleNativeCommand (
         if (auto* parameter = processor.parameters.getParameter (id))
         {
             const auto normalized = static_cast<float> (juce::jlimit (0.0, 1.0, numericValue));
-            if (phase == "begin") parameter->beginChangeGesture();
-            parameter->setValueNotifyingHost (normalized);
-            if (phase == "end") parameter->endChangeGesture();
+            if (phase == "begin" && ! activeGestures.contains (id))
+            {
+                activeGestures.add (id);
+                parameter->beginChangeGesture();
+            }
+            if (phase == "set")
+            {
+                if (! activeGestures.contains (id))
+                {
+                    completion (makeObject ({ { "ok", false }, { "error", "gesture not begun" } }));
+                    return;
+                }
+                parameter->setValueNotifyingHost (normalized);
+            }
+            if (phase == "end" && activeGestures.contains (id))
+            {
+                parameter->endChangeGesture();
+                activeGestures.removeString (id);
+            }
             markStateDirty();
         }
         else
@@ -275,6 +322,7 @@ void OpenFADRotatorAudioProcessorEditor::handleNativeCommand (
     }
     else if (type == "program")
     {
+        endAllGestures();
         const auto numericIndex = static_cast<double> (object->getProperty ("index"));
         if (! std::isfinite (numericIndex))
         {
@@ -286,14 +334,23 @@ void OpenFADRotatorAudioProcessorEditor::handleNativeCommand (
                                                    juce::roundToInt (numericIndex)));
         markStateDirty();
     }
+    else if (type == "parameterMenu")
+    {
+        if (auto* parameter = processor.parameters.getParameter (object->getProperty ("id").toString()))
+            if (auto* context = getHostContext())
+                if (auto menu = context->getContextMenuForParameter (parameter))
+                    menu->showNativeMenu (getMouseXYRelative());
+    }
     else if (type == "previousProgram")
     {
+        endAllGestures();
         const auto count = processor.getNumPrograms();
         processor.setCurrentProgram ((processor.getCurrentProgram() + count - 1) % count);
         markStateDirty();
     }
     else if (type == "nextProgram")
     {
+        endAllGestures();
         const auto count = processor.getNumPrograms();
         processor.setCurrentProgram ((processor.getCurrentProgram() + 1) % count);
         markStateDirty();
@@ -335,6 +392,7 @@ void OpenFADRotatorAudioProcessorEditor::sendFullState()
     state->setProperty ("program", processor.getCurrentProgram());
     state->setProperty ("programName", processor.getCurrentPresetName());
     state->setProperty ("programCount", processor.getNumPrograms());
+    state->setProperty ("presetRevision", static_cast<double> (processor.getPresetRevision()));
     juce::Array<juce::var> programNames;
     for (int index = 0; index < processor.getNumPrograms(); ++index)
         programNames.add (processor.getProgramName (index));
@@ -344,23 +402,56 @@ void OpenFADRotatorAudioProcessorEditor::sendFullState()
 
 void OpenFADRotatorAudioProcessorEditor::savePresetToDefaultLocation()
 {
+    if (fileChooser != nullptr) return;
+    endAllGestures();
     const auto safeName = processor.getCurrentPresetName()
                               .replaceCharacters ("\\/:*?\"<>|", "_________");
     const auto directory = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
                                 .getChildFile ("openFAD")
                                 .getChildFile ("Rotator")
                                 .getChildFile ("Presets");
-    const auto file = directory.getChildFile (safeName + ".ofr.json");
-    const auto saved = processor.savePresetFile (file, processor.getCurrentPresetName());
-
-    auto notice = std::make_unique<juce::DynamicObject>();
-    notice->setProperty ("ok", saved);
-    notice->setProperty ("message", saved ? "Preset saved" : "Could not save preset");
-    browser.emitEventIfBrowserIsVisible ("notice", juce::var (notice.release()));
+    directory.createDirectory();
+    fileChooser = std::make_unique<juce::FileChooser> ("Save openFAD Rotator preset",
+        directory.getChildFile (safeName + ".ofr.json"), "*.ofr.json");
+    const juce::Component::SafePointer<OpenFADRotatorAudioProcessorEditor> safeThis (this);
+    fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                               | juce::FileBrowserComponent::canSelectFiles
+                               | juce::FileBrowserComponent::warnAboutOverwriting,
+        [safeThis] (const juce::FileChooser& chooser)
+        {
+            if (safeThis == nullptr) return;
+            auto file = chooser.getResult();
+            if (file != juce::File {})
+            {
+                if (! file.getFileName().endsWithIgnoreCase (".ofr.json"))
+                {
+                    const auto withExtension = file.getSiblingFile (file.getFileName() + ".ofr.json");
+                    if (withExtension.existsAsFile())
+                    {
+                        safeThis->browser.emitEventIfBrowserIsVisible ("notice", makeObject ({
+                            { "ok", false }, { "message", "File exists; select the .ofr.json file to confirm overwrite" }
+                        }));
+                        safeThis->fileChooser.reset();
+                        return;
+                    }
+                    file = withExtension;
+                }
+                const auto name = file.getFileName().dropLastCharacters (9);
+                const auto saved = safeThis->processor.savePresetFile (file, name);
+                safeThis->sendFullState();
+                safeThis->browser.emitEventIfBrowserIsVisible ("notice", makeObject ({
+                    { "ok", saved }, { "presetSaved", saved },
+                    { "message", saved ? "Preset saved" : "Could not save preset" }
+                }));
+            }
+            safeThis->fileChooser.reset();
+        });
 }
 
 void OpenFADRotatorAudioProcessorEditor::openPresetChooser()
 {
+    if (fileChooser != nullptr) return;
+    endAllGestures();
     fileChooser = std::make_unique<juce::FileChooser> (
         "Open openFAD Rotator preset",
         juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
@@ -381,9 +472,10 @@ void OpenFADRotatorAudioProcessorEditor::openPresetChooser()
                                   if (file.existsAsFile())
                                   {
                                       const auto loaded = safeThis->processor.loadPresetFile (file);
-                                      safeThis->markStateDirty();
+                                      safeThis->sendFullState();
                                       auto notice = std::make_unique<juce::DynamicObject>();
                                       notice->setProperty ("ok", loaded);
+                                      notice->setProperty ("presetLoaded", loaded);
                                       notice->setProperty ("message", loaded ? "Preset loaded" : "Could not load preset");
                                       safeThis->browser.emitEventIfBrowserIsVisible ("notice", juce::var (notice.release()));
                                   }
@@ -399,6 +491,8 @@ void OpenFADRotatorAudioProcessorEditor::sendTelemetry()
     telemetry->setProperty ("rotorPhase", snapshot.rotorPhase);
     telemetry->setProperty ("rotorRate", snapshot.rotorRate);
     telemetry->setProperty ("rotorSignedRate", snapshot.rotorSignedRate);
+    telemetry->setProperty ("drumPhase", snapshot.drumPhase);
+    telemetry->setProperty ("drumSignedRate", snapshot.drumSignedRate);
     telemetry->setProperty ("bpm", currentBpm (processor));
     if (const auto* direction = processor.parameters.getRawParameterValue (openfad::params::id::direction))
         telemetry->setProperty ("direction", direction->load());
@@ -477,8 +571,10 @@ juce::String OpenFADRotatorAudioProcessorEditor::mimeTypeFor (const juce::String
     if (path.endsWithIgnoreCase (".css")) return "text/css";
     if (path.endsWithIgnoreCase (".json")) return "application/json";
     if (path.endsWithIgnoreCase (".woff2")) return "font/woff2";
+    if (path.endsWithIgnoreCase (".woff")) return "font/woff";
     if (path.endsWithIgnoreCase (".png")) return "image/png";
     if (path.endsWithIgnoreCase (".svg")) return "image/svg+xml";
+    if (path.endsWithIgnoreCase (".glb")) return "model/gltf-binary";
     return "application/octet-stream";
 }
 

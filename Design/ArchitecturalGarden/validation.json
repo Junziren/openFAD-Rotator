@@ -1,0 +1,181 @@
+{
+  "blender": "5.2.2 LTS",
+  "macro_combinations_checked": 81,
+  "screen_bounds_failures": [],
+  "control_overlap_pairs": [],
+  "non_manifold_meshes": [],
+  "non_positive_volumes": [],
+  "labels": {
+    "character": {
+      "anchor": [
+        0.24368202686309814,
+        0.4795306921005249
+      ],
+      "rect": [
+        0.1553574949502945,
+        0.44201672077178955,
+        0.3320065438747406,
+        0.7839430570602417
+      ]
+    },
+    "motion": {
+      "anchor": [
+        0.7454870343208313,
+        0.3897455930709839
+      ],
+      "rect": [
+        0.6711187958717346,
+        0.544198215007782,
+        0.819855272769928,
+        0.8582901954650879
+      ]
+    },
+    "space": {
+      "anchor": [
+        0.31588420271873474,
+        0.6975802481174469
+      ],
+      "rect": [
+        0.20288783311843872,
+        0.2554382085800171,
+        0.42888060212135315,
+        0.4206382632255554
+      ]
+    },
+    "dream": {
+      "anchor": [
+        0.6949455142021179,
+        0.7072000801563263
+      ],
+      "rect": [
+        0.602026104927063,
+        0.21570776402950287,
+        0.7817384600639343,
+        0.5119457244873047
+      ]
+    }
+  },
+  "controls": {
+    "character": {
+      "root": "01.Character_Tower",
+      "parts": [
+        "Character.telescopic_core",
+        "Character.telescopic_core",
+        "Character.moving_crown"
+      ]
+    },
+    "motion": {
+      "root": "02.Motion_Pavilion",
+      "parts": [
+        "Motion.telescopic_column",
+        "Motion.telescopic_column",
+        "Motion.telescopic_column.001",
+        "Motion.telescopic_column.001",
+        "Motion.telescopic_column.002",
+        "Motion.telescopic_column.002",
+        "Motion.telescopic_column.003",
+        "Motion.telescopic_column.003",
+        "Motion.moving_ring"
+      ]
+    },
+    "space": {
+      "root": "03.Space_Bridge",
+      "parts": [
+        "Space.moving_abutment_-1",
+        "Space.moving_abutment_1",
+        "Space.telescopic_span"
+      ]
+    },
+    "dream": {
+      "root": "04.Dream_Terraces",
+      "parts": [
+        "Dream.telescopic_spine",
+        "Dream.telescopic_spine",
+        "Dream.moving_terrace_00",
+        "Dream.moving_terrace_01",
+        "Dream.moving_terrace_02",
+        "Dream.moving_terrace_03"
+      ]
+    }
+  },
+  "floor_bottom": 0.8327781409025192,
+  "viewports": {
+    "1100": {
+      "rects": {
+        "character": [
+          0.1730617332233958,
+          0.4369737971574068,
+          0.34063634470309295,
+          0.8086381616946905
+        ],
+        "motion": [
+          0.6623284467687346,
+          0.5480422235761672,
+          0.8034243512235275,
+          0.8894514217972755
+        ],
+        "space": [
+          0.2181504444308477,
+          0.23416817263959477,
+          0.43253399584799596,
+          0.4137360117181319
+        ],
+        "dream": [
+          0.5967850378931385,
+          0.1909822905957103,
+          0.7672655939647597,
+          0.5129846684192414
+        ]
+      },
+      "floor_bottom": 0.8617205320098373,
+      "camera_scale": 14.6,
+      "stage_size": [
+        1100,
+        624
+      ]
+    },
+    "820": {
+      "rects": {
+        "character": [
+          0.1730617332233958,
+          0.43681573771454135,
+          0.34063634470309295,
+          0.809412175893298
+        ],
+        "motion": [
+          0.6623284467687346,
+          0.5481627056415619,
+          0.8034243512235275,
+          0.8904281024788988
+        ],
+        "space": [
+          0.2181504444308477,
+          0.23350150974966272,
+          0.43253399584799596,
+          0.41351967569736237
+        ],
+        "dream": [
+          0.5967850378931385,
+          0.19020732455331713,
+          0.7672655939647597,
+          0.5130172318510138
+        ]
+      },
+      "floor_bottom": 0.8626276681402696,
+      "camera_scale": 14.6,
+      "stage_size": [
+        820,
+        464
+      ]
+    }
+  },
+  "clearance": {
+    "horn_sweep_radius": 0.732205581547604,
+    "cabinet_minimum_inner_half_extent": 0.86,
+    "horn_radial_clearance": 0.12779441845239603,
+    "drum_sweep_radius": 0.674,
+    "drum_radial_clearance": 0.18599999999999994,
+    "drum_top_to_fixed_baffle": 0.25249999999999995,
+    "horn_top_to_roof": 0.21999999999999975
+  }
+}

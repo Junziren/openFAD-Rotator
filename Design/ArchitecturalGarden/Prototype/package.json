@@ -1,0 +1,20 @@
+{
+  "name": "rotator-garden-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "test": "node tests/interaction.mjs && node tests/visuals.mjs && node tests/about.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0",
+    "lucide": "0.468.0"
+  },
+  "devDependencies": {
+    "vite": "6.1.0",
+    "@playwright/test": "1.51.1",
+    "pngjs": "7.0.0"
+  }
+}

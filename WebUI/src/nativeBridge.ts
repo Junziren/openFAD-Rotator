@@ -32,12 +32,15 @@ export type NativeState = {
   programName?: string;
   programNames?: string[];
   programCount?: number;
+  presetRevision?: number;
 };
 
 export type NativeTelemetry = {
   rotorPhase?: number;
   rotorRate?: number;
   rotorSignedRate?: number;
+  drumPhase?: number;
+  drumSignedRate?: number;
   direction?: number;
   audioSequence?: number;
   bpm?: number;
@@ -127,6 +130,8 @@ function parseTelemetry(payload: unknown): NativeTelemetry | undefined {
   const telemetry = payload as NativeTelemetry;
   return {
     rotorPhase: finiteNumber(telemetry.rotorPhase),
+    drumPhase: finiteNumber(telemetry.drumPhase),
+    drumSignedRate: finiteNumber(telemetry.drumSignedRate),
     rotorRate: finiteNumber(telemetry.rotorRate),
     rotorSignedRate: typeof telemetry.rotorSignedRate === "number"
       ? Math.min(20, Math.max(-20, finiteNumber(telemetry.rotorSignedRate)))
@@ -156,6 +161,7 @@ export class NativeBridge {
     private readonly onState: (state: NativeState) => void,
     private readonly onTelemetry: (telemetry: NativeTelemetry) => void,
     private readonly onNotice?: (notice: unknown) => void,
+    private readonly onVisibility?: (visible: boolean) => void,
   ) {
     this.backend = getBackend();
     this.available = this.backend !== undefined;
@@ -184,6 +190,9 @@ export class NativeBridge {
 
     if (this.onNotice) {
       this.eventTokens.push(this.backend.addEventListener("notice", this.onNotice));
+    }
+    if (this.onVisibility) {
+      this.eventTokens.push(this.backend.addEventListener("visibility", payload => this.onVisibility?.(payload === true)));
     }
   }
 
@@ -230,12 +239,16 @@ export class NativeBridge {
     if (!this.backend || !url) return;
     void this.call("openExternal", { url });
   }
+  parameterMenu(id: string) {
+    if (this.backend) void this.call("parameterMenu", { id });
+  }
 
   dispose() {
     if (!this.backend) return;
     this.eventTokens.forEach((token) => this.backend?.removeEventListener(token));
     this.eventTokens = [];
     if (this.completionToken !== undefined) this.backend.removeEventListener(this.completionToken);
+    this.pending.forEach(resolve => resolve(undefined));
     this.pending.clear();
   }
 

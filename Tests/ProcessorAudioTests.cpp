@@ -367,6 +367,55 @@ bool checkProgramsAndStateRoundTrip()
     return true;
 }
 
+bool checkPresetValidation()
+{
+    Processor processor;
+    processor.setCurrentProgram (3);
+    const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                          .getNonexistentChildFile ("openfad-garden-preset", ".ofr.json", false);
+    if (! processor.savePresetFile (file, "Garden Round Trip"))
+        return false;
+    const auto good = juce::JSON::parse (file.loadFileAsString());
+    const auto baseline = actualValue (processor, openfad::params::id::mix);
+    const auto revision = processor.getPresetRevision();
+    if (processor.getCurrentPresetName() != "Garden Round Trip")
+        return false;
+    for (int kind = 0; kind < 6; ++kind)
+    {
+        auto invalid = good.clone();
+        auto* object = invalid.getDynamicObject();
+        if (kind == 0) object->setProperty ("product", "Other Product");
+        if (kind == 1) object->setProperty ("schemaVersion", 999);
+        if (kind >= 2)
+        {
+            auto xml = juce::XmlDocument::parse (object->getProperty ("stateXml").toString());
+            auto state = juce::ValueTree::fromXml (*xml);
+            if (kind == 2) state = juce::ValueTree ("OtherState");
+            if (kind == 3) state.getChild (0).setProperty ("value", "nan", nullptr);
+            if (kind == 4) state.getChild (0).setProperty ("value", "999999", nullptr);
+            if (kind == 5) state.addChild (state.getChild (0).createCopy(), -1, nullptr);
+            object->setProperty ("stateXml", state.createXml()->toString());
+        }
+        file.replaceWithText (juce::JSON::toString (invalid));
+        if (processor.loadPresetFile (file)
+            || actualValue (processor, openfad::params::id::mix) != baseline
+            || processor.getPresetRevision() != revision
+            || processor.getCurrentPresetName() != "Garden Round Trip")
+        {
+            std::cerr << "invalid preset changed state: " << kind << "\n";
+            file.deleteFile();
+            return false;
+        }
+    }
+    file.replaceWithText (juce::JSON::toString (good));
+    processor.setCurrentProgram (0);
+    const auto loaded = processor.loadPresetFile (file);
+    file.deleteFile();
+    return loaded && processor.getCurrentProgram() == 3
+        && processor.getCurrentPresetName() == "Garden Round Trip"
+        && std::abs (actualValue (processor, openfad::params::id::mix) - baseline) < 1.0e-6f;
+}
+
 bool checkDefaultAudioChain()
 {
     Processor processor;
@@ -505,6 +554,7 @@ int main()
     if (! checkDefaultAudioChain()
         || ! checkStereoAndMonoLayouts()
         || ! checkProgramsAndStateRoundTrip()
+        || ! checkPresetValidation()
         || ! checkHostTempoSync()
         || ! checkMultiInstanceIsolation()
         || ! checkOfflineDreamTail())

@@ -44,6 +44,7 @@ public:
     bool isPlaying() const noexcept { return playing.load (std::memory_order_relaxed); }
     uint32_t getAudioProcessSequence() const noexcept { return audioProcessSequence.load (std::memory_order_relaxed); }
     const juce::String& getCurrentPresetName() const noexcept { return currentPresetName; }
+    uint32_t getPresetRevision() const noexcept { return presetRevision.load (std::memory_order_acquire); }
 
     bool savePresetFile (const juce::File& file, const juce::String& name);
     bool loadPresetFile (const juce::File& file);
@@ -62,6 +63,7 @@ private:
     std::atomic<uint32_t> audioProcessSequence { 0u };
     int currentProgram = 0;
     juce::String currentPresetName;
+    std::atomic<uint32_t> presetRevision { 0u };
     std::atomic<float> midiFreeze { 0.0f };
     std::atomic<bool> midiFreezeClearRequested { false };
     std::array<uint8_t, 16 * 128> heldMidiNotes {};

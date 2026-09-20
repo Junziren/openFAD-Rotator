@@ -1,0 +1,198 @@
+{
+  "viewports": [
+    {
+      "size": [
+        1100,
+        760
+      ],
+      "reserved_top": 66,
+      "reserved_bottom": 70,
+      "label_rectangles": {
+        "character": [
+          78,
+          336,
+          178,
+          377
+        ],
+        "motion": [
+          898,
+          264,
+          998,
+          305
+        ],
+        "space": [
+          308,
+          616,
+          408,
+          657
+        ],
+        "dream": [
+          700,
+          616,
+          800,
+          657
+        ]
+      },
+      "object_rectangles": {
+        "character": [
+          190.36790654573537,
+          185.40978710251312,
+          374.69997917340226,
+          417.32835057377815
+        ],
+        "motion": [
+          728.561291445608,
+          134.98231279850006,
+          883.7667863458803,
+          348.0216524884717
+        ],
+        "space": [
+          239.96548887393246,
+          431.8287286878857,
+          475.78739543279556,
+          543.8790602728928
+        ],
+        "dream": [
+          656.4635416824524,
+          369.89756690639337,
+          843.9921533612356,
+          570.8270506682768
+        ]
+      },
+      "label_overlap": false,
+      "minimum_control_bounds_at_least_44px": true
+    },
+    {
+      "size": [
+        820,
+        600
+      ],
+      "reserved_top": 66,
+      "reserved_bottom": 70,
+      "label_rectangles": {
+        "character": [
+          30,
+          261,
+          130,
+          302
+        ],
+        "motion": [
+          673,
+          208,
+          773,
+          249
+        ],
+        "space": [
+          217,
+          478,
+          317,
+          519
+        ],
+        "dream": [
+          509,
+          478,
+          609,
+          519
+        ]
+      },
+      "object_rectangles": {
+        "character": [
+          141.91062124318455,
+          154.43275038550973,
+          279.32180265653625,
+          327.3174977004528
+        ],
+        "motion": [
+          543.1093263503624,
+          116.84136044979095,
+          658.8079680032926,
+          275.65250458231526
+        ],
+        "space": [
+          178.8833644332951,
+          338.12687047642385,
+          354.6778765953567,
+          421.65529947615653
+        ],
+        "dream": [
+          489.3637310723736,
+          291.9600044211296,
+          629.1577870511029,
+          441.74380140726083
+        ]
+      },
+      "label_overlap": false,
+      "minimum_control_bounds_at_least_44px": true
+    }
+  ],
+  "renders": {
+    "low": {
+      "size": [
+        1600,
+        1040
+      ],
+      "channel_stddev": [
+        23.353792082748043,
+        20.5188958717926,
+        21.785918884802264
+      ]
+    },
+    "mid": {
+      "size": [
+        1600,
+        1040
+      ],
+      "channel_stddev": [
+        23.364427116728685,
+        20.723675328658867,
+        21.968243197152802
+      ]
+    },
+    "high": {
+      "size": [
+        1600,
+        1040
+      ],
+      "channel_stddev": [
+        23.338025882577103,
+        20.855763183002633,
+        22.056402872612715
+      ]
+    }
+  },
+  "three_distinct_poses": true,
+  "glb_render_mean_absolute_channel_difference": [
+    0.005818509615384615,
+    0.005483173076923077,
+    0.005421274038461539
+  ],
+  "glb_assets": [
+    {
+      "file": "acoustic-garden.glb",
+      "bytes": 640348,
+      "triangles": 10960,
+      "mesh_primitives": 50,
+      "materials": 10,
+      "animations": 1,
+      "macro_ids": [
+        "character",
+        "dream",
+        "motion",
+        "space"
+      ],
+      "no_external_resources": true,
+      "sha256": "9f205ce969e3cb2dfb57ee2065d03729ba5676a98da537141691e843181cbba5"
+    },
+    {
+      "file": "rotary-speaker.glb",
+      "bytes": 277140,
+      "triangles": 5056,
+      "mesh_primitives": 12,
+      "materials": 5,
+      "animations": 0,
+      "macro_ids": [],
+      "no_external_resources": true,
+      "sha256": "1e8cc06106ec4d0acbc2999338d7741908de961e675af91de7b9f065e2cf1de4"
+    }
+  ]
+}

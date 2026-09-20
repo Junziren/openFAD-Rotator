@@ -162,6 +162,8 @@ void RotatorDSP::reset()
     telemetrySequence.store (0u, std::memory_order_release);
     telemetryRotorRate.store (0.0f, std::memory_order_relaxed);
     telemetryRotorSignedRate.store (0.0f, std::memory_order_relaxed);
+    telemetryDrumPhase.store (0.0f, std::memory_order_relaxed);
+    telemetryDrumSignedRate.store (0.0f, std::memory_order_relaxed);
     telemetryInputPeak.store (0.0f, std::memory_order_relaxed);
     telemetryOutputPeak.store (0.0f, std::memory_order_relaxed);
     telemetryBand0.store (0.0f, std::memory_order_relaxed);
@@ -789,6 +791,8 @@ void RotatorDSP::process (juce::AudioBuffer<float>& buffer, const Params& rawPar
                               std::memory_order_relaxed);
     telemetryRotorSignedRate.store (std::isfinite (rotorRate) ? rotorRate : 0.0f,
                                     std::memory_order_relaxed);
+    telemetryDrumPhase.store (std::isfinite (drumPhase) ? drumPhase : 0.0f, std::memory_order_relaxed);
+    telemetryDrumSignedRate.store (std::isfinite (drumRate) ? drumRate : 0.0f, std::memory_order_relaxed);
     telemetryInputPeak.store (std::isfinite (inputPeak) ? inputPeak : 0.0f, std::memory_order_relaxed);
     telemetryOutputPeak.store (std::isfinite (outputPeak) ? outputPeak : 0.0f, std::memory_order_relaxed);
     telemetryBand0.store (std::isfinite (bandEnergy[0]) ? bandEnergy[0] : 0.0f, std::memory_order_relaxed);

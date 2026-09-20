@@ -5,6 +5,7 @@ This project embeds or builds against the following third-party components.
 - JUCE: https://juce.com/ and the license text shipped with the selected JUCE checkout.
 - VST3 SDK: the Steinberg SDK shipped inside the selected JUCE checkout and its accompanying license text.
 - gl-matrix: matrix and vector operations for the native WebGL2 renderer.
+- Three.js (MIT) and lucide (ISC): the bundled Acoustic Garden renderer and toolbar icons.
 - React, React DOM, scheduler and lucide-react: runtime UI libraries bundled into the WebUI.
 - Source Sans 3, Noto Sans SC and JetBrains Mono: open font packages used by the offline WebUI.
 - Microsoft WebView2 SDK/runtime: `Resources/WebView2/WebView2Loader.dll` is an x64 loader redistributed under Microsoft's WebView2 terms. The Windows offline release also bundles the official Evergreen Standalone x64 Runtime; source-built copies still require a compatible WebView2 Runtime on the target machine.

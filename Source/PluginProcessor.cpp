@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace
 {
@@ -378,6 +379,7 @@ void OpenFADRotatorAudioProcessor::setCurrentProgram (int index)
     currentProgram = juce::jlimit (0, getNumPrograms() - 1, index);
     currentPresetName = getProgramName (currentProgram);
     applyProgram (currentProgram);
+    presetRevision.fetch_add (1u, std::memory_order_release);
 }
 
 const juce::String OpenFADRotatorAudioProcessor::getProgramName (int index)
@@ -518,6 +520,7 @@ void OpenFADRotatorAudioProcessor::setStateInformation (const void* data, int si
             setStateParameterNormalized (state, openfad::params::id::freeze, 0.0f);
             parameters.replaceState (state);
             clearMidiFreeze();
+            presetRevision.fetch_add (1u, std::memory_order_release);
         }
     }
 }
@@ -537,14 +540,25 @@ bool OpenFADRotatorAudioProcessor::savePresetFile (const juce::File& file, const
     if (auto xml = state.createXml())
         object->setProperty ("stateXml", xml->toString());
 
-    file.getParentDirectory().createDirectory();
-    return file.replaceWithText (juce::JSON::toString (juce::var (object.release()), true));
+    if (file.getParentDirectory().createDirectory().failed())
+        return false;
+    juce::TemporaryFile temporary (file);
+    if (! temporary.getFile().replaceWithText (juce::JSON::toString (juce::var (object.release()), true))
+        || ! temporary.overwriteTargetFileWithTemporary())
+        return false;
+    currentPresetName = name.isNotEmpty() ? name : currentPresetName;
+    presetRevision.fetch_add (1u, std::memory_order_release);
+    return true;
 }
 
 bool OpenFADRotatorAudioProcessor::loadPresetFile (const juce::File& file)
 {
+    if (! file.existsAsFile() || file.getSize() > 1024 * 1024)
+        return false;
     const auto parsed = juce::JSON::parse (file.loadFileAsString());
-    if (! parsed.isObject())
+    if (! parsed.isObject()
+        || parsed.getProperty ("product", juce::var()).toString() != getName()
+        || static_cast<int> (parsed.getProperty ("schemaVersion", 0)) != 1)
         return false;
 
     const auto stateXml = parsed.getProperty ("stateXml", juce::var()).toString();
@@ -554,14 +568,36 @@ bool OpenFADRotatorAudioProcessor::loadPresetFile (const juce::File& file)
     if (auto xml = juce::XmlDocument::parse (stateXml))
     {
         auto state = juce::ValueTree::fromXml (*xml);
-        if (state.isValid())
+        if (state.isValid() && state.hasType (parameters.state.getType()) && state.getNumChildren() > 0)
         {
+            juce::StringArray seen;
+            for (const auto& child : state)
+            {
+                const auto id = child.getProperty ("id").toString();
+                const auto* parameter = parameters.getParameter (id);
+                const auto raw = child.getProperty ("value");
+                if (parameter == nullptr || seen.contains (id)
+                    || ! (raw.isDouble() || raw.isInt() || raw.isInt64() || raw.isString()))
+                    return false;
+                // ValueTree XML values deserialize as strings. Reject non-numeric strings.
+                const auto text = raw.toString().trim();
+                char* end = nullptr;
+                const auto* start = text.toRawUTF8();
+                const auto numeric = std::strtod (start, &end);
+                if (text.isEmpty() || end == start || *end != '\0')
+                    return false;
+                const auto& range = parameter->getNormalisableRange();
+                if (! std::isfinite (numeric) || numeric < range.start - 0.00001 || numeric > range.end + 0.00001)
+                    return false;
+                seen.add (id);
+            }
             currentProgram = juce::jlimit (0, getNumPrograms() - 1,
                                           static_cast<int> (state.getProperty ("programIndex", currentProgram)));
             currentPresetName = parsed.getProperty ("name", getProgramName (currentProgram)).toString();
             setStateParameterNormalized (state, openfad::params::id::freeze, 0.0f);
             parameters.replaceState (state);
             clearMidiFreeze();
+            presetRevision.fetch_add (1u, std::memory_order_release);
             return true;
         }
     }

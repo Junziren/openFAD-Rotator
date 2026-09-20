@@ -61,6 +61,8 @@ $entries = @(
     @{ Id = "fontsource-noto-sans-sc"; Root = (Join-Path $root "WebUI\node_modules\@fontsource\noto-sans-sc"); Source = "WebUI/node_modules/@fontsource/noto-sans-sc"; Required = $true },
     @{ Id = "fontsource-source-sans-3"; Root = (Join-Path $root "WebUI\node_modules\@fontsource\source-sans-3"); Source = "WebUI/node_modules/@fontsource/source-sans-3"; Required = $true },
     @{ Id = "gl-matrix"; Root = (Join-Path $root "WebUI\node_modules\gl-matrix"); Source = "WebUI/node_modules/gl-matrix"; Required = $true },
+    @{ Id = "three"; Root = (Join-Path $root "WebUI\node_modules\three"); Source = "WebUI/node_modules/three"; Required = $true },
+    @{ Id = "lucide"; Root = (Join-Path $root "WebUI\node_modules\lucide"); Source = "WebUI/node_modules/lucide"; Required = $true },
     @{ Id = "lucide-react"; Root = (Join-Path $root "WebUI\node_modules\lucide-react"); Source = "WebUI/node_modules/lucide-react"; Required = $true },
     @{ Id = "react"; Root = (Join-Path $root "WebUI\node_modules\react"); Source = "WebUI/node_modules/react"; Required = $true },
     @{ Id = "react-dom"; Root = (Join-Path $root "WebUI\node_modules\react-dom"); Source = "WebUI/node_modules/react-dom"; Required = $true },

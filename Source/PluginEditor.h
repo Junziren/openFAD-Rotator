@@ -24,15 +24,29 @@ private:
     void sendTelemetry();
     void openPresetChooser();
     void savePresetToDefaultLocation();
+    void endAllGestures();
     void markStateDirty() noexcept;
     juce::WebBrowserComponent::Options makeBrowserOptions();
     static std::optional<juce::WebBrowserComponent::Resource> provideResource (const juce::String& path);
     static juce::String mimeTypeFor (const juce::String& path);
 
     OpenFADRotatorAudioProcessor& processor;
-    juce::WebBrowserComponent browser;
+    class LocalBrowser final : public juce::WebBrowserComponent
+    {
+    public:
+        explicit LocalBrowser (const Options& options) : WebBrowserComponent (options) {}
+        bool pageAboutToLoad (const juce::String& url) override
+        {
+            return url.startsWith (getResourceProviderRoot()) || url == "about:blank";
+        }
+        void newWindowAttemptingToLoad (const juce::String&) override {}
+    };
+    LocalBrowser browser;
     std::atomic<bool> stateDirty { false };
     std::unique_ptr<juce::FileChooser> fileChooser;
+    juce::StringArray activeGestures;
+    bool wasVisible = false;
+    uint32_t lastPresetRevision = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OpenFADRotatorAudioProcessorEditor)
 };

@@ -32,6 +32,8 @@ public:
         float rotorPhase = 0.0f;
         float rotorRate = 0.0f;
         float rotorSignedRate = 0.0f;
+        float drumPhase = 0.0f;
+        float drumSignedRate = 0.0f;
         float inputPeak = 0.0f;
         float outputPeak = 0.0f;
         std::array<float, 3> bandEnergy { 0.0f, 0.0f, 0.0f };
@@ -105,6 +107,8 @@ public:
             snapshot.rotorPhase = telemetryRotorPhase.load (std::memory_order_relaxed);
             snapshot.rotorRate = telemetryRotorRate.load (std::memory_order_relaxed);
             snapshot.rotorSignedRate = telemetryRotorSignedRate.load (std::memory_order_relaxed);
+            snapshot.drumPhase = telemetryDrumPhase.load (std::memory_order_relaxed);
+            snapshot.drumSignedRate = telemetryDrumSignedRate.load (std::memory_order_relaxed);
             snapshot.inputPeak = telemetryInputPeak.load (std::memory_order_relaxed);
             snapshot.outputPeak = telemetryOutputPeak.load (std::memory_order_relaxed);
             snapshot.bandEnergy = {
@@ -210,6 +214,8 @@ private:
     std::atomic<uint32_t> telemetrySequence { 0u };
     std::atomic<float> telemetryRotorRate { 0.0f };
     std::atomic<float> telemetryRotorSignedRate { 0.0f };
+    std::atomic<float> telemetryDrumPhase { 0.0f };
+    std::atomic<float> telemetryDrumSignedRate { 0.0f };
     std::atomic<float> telemetryInputPeak { 0.0f };
     std::atomic<float> telemetryOutputPeak { 0.0f };
     std::atomic<float> telemetryBand0 { 0.0f };
