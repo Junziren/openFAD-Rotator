@@ -10,6 +10,10 @@
 - macOS 12+: use `openFAD-Rotator-0.1.0-macOS-universal2.pkg`, or the ZIP for
   the complete portable distribution. Intel and Apple Silicon are included.
   The AUv3 extension is embedded in the Standalone application.
+- AUv3 development/testing: use
+  `openFAD-Rotator-0.1.0-macOS-AUv3-universal2.zip`. This is the independently
+  packaged `.appex` bundle with arm64 and x86_64 slices. Its adjacent `.sha256`
+  file verifies the download.
 
 Windows Setup installs the plugin in the standard system VST3 directory,
 creates a Start Menu shortcut and registers an uninstaller. It checks runtime
@@ -34,6 +38,8 @@ alter the plugin binary.
 - Package audit passed; both dependency installers have valid Microsoft signatures.
 - macOS Actions build and packaging succeeded; eight CTest checks passed and
   universal2 bundle architecture/topology checks passed.
+- The dedicated AUv3 workflow independently rebuilt and verified the `.appex`
+  as `x86_64 arm64`, then uploaded it to the same GitHub Release.
 - No clean disconnected Windows VM test was available. The tested Windows
   machine already had the required runtimes; missing-runtime branches still
   require clean-machine acceptance.
