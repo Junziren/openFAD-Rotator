@@ -1,0 +1,115 @@
+name: AUv3 release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub Release tag to receive the AUv3 asset
+        required: true
+        default: garden-2026-09-20
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auv3-release-${{ inputs.release_tag }}
+  cancel-in-progress: true
+
+env:
+  MACOSX_DEPLOYMENT_TARGET: "12.0"
+
+jobs:
+  build-auv3:
+    runs-on: macos-14
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: WebUI/package-lock.json
+
+      - name: Fetch pinned JUCE
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.12
+          path: JUCE
+          fetch-depth: 1
+
+      - name: Build WebUI
+        working-directory: WebUI
+        run: |
+          npm ci
+          npm run validate:manifest
+          npm run build
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build-macos -G Xcode \
+            -DJUCE_PATH="$GITHUB_WORKSPACE/JUCE" \
+            -DBUILD_TESTING=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+            -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO
+
+      - name: Build AUv3
+        run: cmake --build build-macos --config Release --target openFADRotator_All
+
+      - name: Package and verify standalone AUv3 bundle
+        id: package
+        run: |
+          set -euo pipefail
+          root="build-macos/openFADRotator_artefacts/Release"
+          appex="$root/AUv3/openFAD Rotator.appex"
+          binary="$appex/Contents/MacOS/openFAD Rotator"
+          test -d "$appex"
+          test -x "$binary"
+          arches="$(lipo -archs "$binary")"
+          echo "AUv3 architectures: $arches"
+          [[ "$arches" == *arm64* ]]
+          [[ "$arches" == *x86_64* ]]
+
+          version="$(sed -nE 's/.*project[[:space:]]*\([[:space:]]*openFADRotator[[:space:]]+VERSION[[:space:]]+([0-9]+(\.[0-9]+){1,3}).*/\1/p' CMakeLists.txt | head -n 1)"
+          name="openFAD-Rotator-${version}-macOS-AUv3-universal2"
+          mkdir -p "build-macos/auv3-release/$name"
+          ditto "$appex" "build-macos/auv3-release/$name/openFAD Rotator.appex"
+          cat > "build-macos/auv3-release/$name/README.md" <<EOF
+          # openFAD Rotator AUv3 $version
+
+          This is the standalone unsigned AUv3 extension bundle. It contains
+          arm64 and x86_64 slices and targets macOS 12.0 or newer.
+          Install it through the containing Standalone app or use it for
+          development/testing. Signing and notarization are not included.
+          EOF
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build-macos/auv3-release/$name" \
+            "build-macos/auv3-release/$name.zip"
+          shasum -a 256 "build-macos/auv3-release/$name.zip" | awk '{print $1 "  " $2}' > "build-macos/auv3-release/$name.zip.sha256"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload AUv3 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openFAD-Rotator-auv3-${{ steps.package.outputs.version }}
+          if-no-files-found: error
+          path: |
+            build-macos/auv3-release/*.zip
+            build-macos/auv3-release/*.sha256
+
+      - name: Upload AUv3 asset to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          version="${{ steps.package.outputs.version }}"
+          zip="build-macos/auv3-release/openFAD-Rotator-${version}-macOS-AUv3-universal2.zip"
+          sums="$zip.sha256"
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$RELEASE_TAG" "$zip" "$sums" --clobber --repo "$GITHUB_REPOSITORY"
